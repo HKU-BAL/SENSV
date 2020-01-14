@@ -1,97 +1,80 @@
+# SENSV
+
 ## Installation
 
-### Required Utilities
+### Step 1. Install required packages
 ```
-minimap2
-samtools
-pigz
-bgzip
-grabix
+# config for conda
+conda config --add channels defaults
+conda config --add channels bioconda
+conda config --add channels conda-forge
+
+conda install minimap2 samtools pigz grabix pypy survivor
+
+# for python
+pip install pandas
+pip install scipy
+pip install pysam
+
 ```
 
-### Required Python packages
+### Step 2. Clone the repository
+
 ```
-pysam
+git clone https://github.com/HKU-BAL/SENSV.git
 ```
 
-### Required R packages
-```
-ggplot2
-magrittr
-reshape2
-optparse
-dplyr
-devtools
-cttobin/ggthemr
-```
+### Step 3. Fill in the paths for the required file
 
-Can install by running the following R scripts by super-users:
+In config.ini, change the path for samtools and minimap2 if they are not available in PATH.
+A GRCh37 reference file is also needed. If you do not have it in advance, you can download it with the following commands
 ```
-install.packages('ggplot2')
-install.packages('magrittr')
-install.packages('reshape2')
-install.packages('optparse')
-install.packages('dplyr')
-
-install.packages('devtools')
-devtools::install_github('cttobin/ggthemr')
+curl ftp://ftp-trace.ncbi.nih.gov/1000genomes/ftp/technical/reference/phase2_reference_assembly_sequence/hs37d5.fa.gz > hs37d5.fa.gz
+gzip -d hs37d5.fa.gz
+samtools faidx hs37d5.fa
 ```
-
-## Required data files (for depth analysis)
-```
-1. depth_edward/mask_table.csv
-2. depth_edward/ref_mask_22samples_absdepth_norm_sexchr_nomask.csv
-```
-
-## Configuration file
-```
-1. config.sh (config file for shell scripts)
-2. config.ini (config file for python scripts)
-```
-
-1. In config.sh,
-```
-SCRIPT_PATH=
-PIGZ=
-GRABIX=
-BGZIP=
-```
-
-2. In config.ini,
 ```
 [common]
-minimap2 = [path]/minimap2
-smatools = [path]/samtools
-ref = [path]/hs37d5.fa
+samtools = <path_of_samtools>
+minimap2 = <path_of_minimap2>
+ref_37 = <path_of_GRCh37_ref>
+```
+Please also make sure that the reference index is also available in <path_to_GRCh37_ref>.fai
 
-[default_value]
-minSvSize = 10000
-maxSvSize = 0
-svType = DEL
+In config.sh, change the path for bgzip, pigz and grabix if they are not available in PATH.
 
-[realignSv]
-aligner = minimap2 
+```
+PIGZ = <path_of_pigz>
+GRABIX = <path_of_grabix>
+BGZIP = <path_of_bgzip>
 ```
 
-## Execution
+In merge_sv.sh, change the path for survivor if it is not available in PATH.
+
 ```
-python realignSv.py -sample_name <sample_name> -fastq <fastq> -output_prefix <output_prefix> [-min_svsize <min_svsize>]
+survivor = <path_of_survivor>
 ```
 
-Please note that the script will detect the existence of resulting files of a particular step. It starts at the step where the reuslting files of that step do not exist. Hence, it is necessary to remove the resulting files manually to allow re-creation.
+### Step 4. Done
 
-## Generation of deletion region/breakpoints
-Step 1: 
-Input: bam file 
-Command: ./depth.hjyu.sh -b "bamfile path" 
-Output: depth_df_sample.csv 
+Follow the guide below to run SENSV!
 
-Step 2:
-Input: output from step 1 
-Command: Rscript normalize_sample.R -i depth_df_sample path 
-Output: depth_sample_mask_norm.csv 
+## Usage
 
-Step 3: 
-Input: output from step 2 
-Command: Rscript find_abnormal_region.R -i depth_sample_mask_norm.csv -r /home/hjyu/sv/ref_mask_20samples_1.csv -t 1.25 -w 24 -d 40 
-Output: report.csv 
+You will need a fastq file of the sample to run SENSV.
+
+python SENSV.py [options]
+
+```
+Required Arguments:
+-sample_name - Name of the sample
+-fastq - The path to the reads, either gziped or raw
+-output_prefix - Output prefix for all intermediate files and final output, preferably inside a folder.
+
+Optional Arguments:
+-min_sv_size - Minimum SV size to be called
+-max_sv_size - Maximum SV size to be called
+-target_sv_type - [DUP/DEL/DUP,DEL], default is DUP,DEL
+```
+
+After the process is done, the result bed2 file will be available in <output_prefix>_final.result.
