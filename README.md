@@ -26,7 +26,7 @@ git clone https://github.com/HKU-BAL/SENSV.git
 
 ### Step 3. Fill in the paths for the required file
 
-In config.ini, change the path for samtools and minimap2 if they are not available in PATH.
+In `config.ini`, change the path for samtools and minimap2 if they are not available in PATH.
 A GRCh37 reference file is also needed. If you do not have it in advance, you can download it with the following commands
 ```
 curl ftp://ftp-trace.ncbi.nih.gov/1000genomes/ftp/technical/reference/phase2_reference_assembly_sequence/hs37d5.fa.gz > hs37d5.fa.gz
@@ -34,6 +34,7 @@ gzip -d hs37d5.fa.gz
 samtools faidx hs37d5.fa
 ```
 ```
+#config.ini
 [common]
 samtools = <path_of_samtools>
 minimap2 = <path_of_minimap2>
@@ -41,17 +42,19 @@ ref_37 = <path_of_GRCh37_ref>
 ```
 Please also make sure that the reference index is also available in <path_to_GRCh37_ref>.fai
 
-In config.sh, change the path for bgzip, pigz and grabix if they are not available in PATH.
+In `config.sh`, change the path for bgzip, pigz and grabix if they are not available in PATH.
 
 ```
+#config.sh
 PIGZ = <path_of_pigz>
 GRABIX = <path_of_grabix>
 BGZIP = <path_of_bgzip>
 ```
 
-In merge_sv.sh, change the path for survivor if it is not available in PATH.
+In `merge_sv.sh`, change the path for survivor if it is not available in PATH.
 
 ```
+#merge_sv.sh
 survivor = <path_of_survivor>
 ```
 
