@@ -7,6 +7,7 @@ from argparse import ArgumentParser
 import csv
 import subprocess
 import shlex
+from os.path import dirname
 
 from utility import *
 
@@ -18,11 +19,11 @@ from term_sv_caller import *
 from bp_tools import *
 
 """
-class ThreeSV is the integration class for all the steps of SV calling
+class SENSV is the integration class for all the steps of SV calling
 """
 
 
-class ThreeSV:
+class SENSV:
     FASTQ_INDEX_SCRIPT = './index_fastq.sh'
     MERGE_SV_SCRIPT = './merge_sv.sh'
 
@@ -75,7 +76,7 @@ class ThreeSV:
 
         self.disable_dp_filter = options.disable_dp_filter
         self.disable_gen_altref_bam = options.disable_gen_altref_bam
-        self.target_sv_type = options.target_sv_type.split(',') if options.target_sv_type else 'DEL'
+        self.target_sv_type = options.target_sv_type.split(',') if options.target_sv_type else 'DUP,DEL'
         self.gender = None
 
         # less than 10k bed2
@@ -173,13 +174,19 @@ class ThreeSV:
         logging.info("step 2 (generate depth file): begin")
         start_time = time.time()
 
+        basedir = dirname(__file__)
+        depth_path = basedir + "depth"
+
+        current_dir = os.getcwd()
+
         self.get_gender()
 
         ref_file = self.config['depth_ref']
 
-        cmd = 'cd depth && python depth_normalize_gender_thread.py ../%s %s %s ../%s' % (self.minimap2_bam_file, ref_file, self.gender, self.output_prefix)
-
-        print(cmd)
+        if self.output_prefix[0] == "/":
+            cmd = 'cd %s && python depth_normalize_gender_thread.py %s %s %s %s' % (depth_path, self.minimap2_bam_file, ref_file, self.gender, self.output_prefix)
+        else:
+            cmd = 'cd %s && python depth_normalize_gender_thread.py %s/%s %s %s %s/%s' % (depth_path, current_dir, self.minimap2_bam_file, ref_file, self.gender, current_dir, self.output_prefix)
 
         run_shell_cmd(cmd)
 
@@ -243,7 +250,7 @@ class ThreeSV:
                     arr[0], int(arr[1]), arr[2], int(arr[3]), arr[4], arr[5], arr[6], arr[7], int(arr[8])
 
                 svSize = end-start
-                if supp_type <> "adhoc" and svSize >= min_sv_size_for_depth:
+                if supp_type != "adhoc" and svSize >= min_sv_size_for_depth:
                     match = False
                     for depth in depth_region:
                         if chrom == depth['chrom'] and start >= depth['start1'] and start <= depth['start2'] and \
@@ -351,7 +358,6 @@ class ThreeSV:
             if os.path.getsize(self.lt_10k_bed2):
                 cmd = '%s %s %s' % (self.MERGE_SV_SCRIPT, self.lt_10k_bed2, self.lt_10k_merge_bed2)
 
-                print(cmd)
                 run_shell_cmd(cmd)
 
                 with open(self.lt_10k_merge_bed2) as infile:
@@ -479,5 +485,5 @@ if __name__ == "__main__":
     root.addHandler(handler)
 
     options = parser.parse_args()
-    threeSV = ThreeSV(options)
-    threeSV.run()
+    senSV = SENSV(options)
+    senSV.run()
