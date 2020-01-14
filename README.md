@@ -55,10 +55,6 @@ In merge_sv.sh, change the path for survivor if it is not available in PATH.
 survivor = <path_of_survivor>
 ```
 
-### Step 4. Done
-
-Follow the guide below to run SENSV!
-
 ## Usage
 
 You will need a fastq file of the sample to run SENSV.
