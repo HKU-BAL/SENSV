@@ -11,7 +11,7 @@ conda config --add channels conda-forge
 
 conda install minimap2 samtools pigz grabix pypy survivor
 
-# for python
+# for python2
 pip install pandas
 pip install scipy
 pip install pysam
