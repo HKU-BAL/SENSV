@@ -119,14 +119,14 @@ def getDifByChr(chr_num):
     diflikhood_half = pd.DataFrame(columns=['start', 'diflognorm'])
     diflikhood_dup=pd.DataFrame(columns=['start','diflognorm'])
     for row in range(len(ref)):
-        if (ref[row][22] == chr_num and chr_num != 23 and chr_num!=24):
+        if (ref[row][28] == chr_num and chr_num != 23 and chr_num!=24):
 
-            xs=[np.float32(ref[row][1]),np.float32(ref[row][2]),np.float32(ref[row][3]),np.float32(ref[row][4]),np.float32(ref[row][5]),np.float32(ref[row][6]),np.float32(ref[row][7]),np.float32(ref[row][8]),np.float32(ref[row][9]),np.float32(ref[row][10]),np.float32(ref[row][11]),np.float32(ref[row][12]),np.float32(ref[row][13]),np.float32(ref[row][14]),np.float32(ref[row][15]),np.float32(ref[row][16]),np.float32(ref[row][17]),np.float32(ref[row][18]),np.float32(ref[row][19]),np.float32(ref[row][20])]
+            xs=[np.float32(ref[row][1]),np.float32(ref[row][2]),np.float32(ref[row][3]),np.float32(ref[row][4]),np.float32(ref[row][5]),np.float32(ref[row][6]),np.float32(ref[row][7]),np.float32(ref[row][9]),np.float32(ref[row][10]),np.float32(ref[row][11]),np.float32(ref[row][12]),np.float32(ref[row][13]),np.float32(ref[row][14]),np.float32(ref[row][15]),np.float32(ref[row][16]),np.float32(ref[row][17]),np.float32(ref[row][18]),np.float32(ref[row][19]),np.float32(ref[row][20]),np.float32(ref[row][21]),np.float32(ref[row][22]),np.float32(ref[row][23]),np.float32(ref[row][24]),np.float32(ref[row][25]),np.float32(ref[row][26])]
             xs_w=scipy.stats.mstats.winsorize(xs,limits=[0,0.05])
             mean=sum(xs_w)/len(xs_w)
             if(mean==0): continue;
             std=np.std(xs_w)
-            pos = ref[row][21]
+            pos = ref[row][27]
             x = np.float32(sample[row][1])
             norm = scipy.stats.norm(mean, std).pdf(x)
             halfnorm = scipy.stats.norm(mean /2, std).pdf(x)
@@ -157,7 +157,7 @@ def getDifByChr(chr_num):
             diflikhood_half = diflikhood_half.append(df_half, ignore_index=True)
             diflikhood_dup=diflikhood_dup.append(df_dup,ignore_index=True)
 
-        elif(ref[row][22] ==chr_num and (chr_num==23 or chr_num==24)):#26
+        elif(ref[row][28] ==chr_num and (chr_num==23 or chr_num==24)):#26
             #if (depth_3 =='y' and args.gender =='m'):
             #    xs=[np.float32(ref[row][1]),np.float32(ref[row][2]),np.float32(ref[row][3]),np.float32(ref[row][9]),np.float32(ref[row][11]),np.float32(ref[row][14]),np.float32(ref[row][15]),np.float32(ref[row][25]),np.float32(ref[row][26]),np.float32(ref[row][35]),np.float32(ref[row][39]),np.float32(ref[row][42]),np.float32(ref[row][46]),np.float32(ref[row][49])]
             #elif(depth_3=='n' and args.gender=='m'):
@@ -167,15 +167,15 @@ def getDifByChr(chr_num):
             #else:
             #    xs=[np.float32(ref[row][5]),np.float32(ref[row][6]),np.float32(ref[row][8]),np.float32(ref[row][12]),np.float32(ref[row][13]),np.float32(ref[row][18]),np.float32(ref[row][19]),np.float32(ref[row][21]),np.float32(ref[row][22]),np.float32(ref[row][24])]               
             if(args.gender=='f'):
-                xs=[np.float32(ref[row][1]),np.float32(ref[row][2]),np.float32(ref[row][3]),np.float32(ref[row][4]),np.float32(ref[row][7]),np.float32(ref[row][9]),np.float32(ref[row][8]),np.float32(ref[row][6]),np.float32(ref[row][5]),np.float32(ref[row][10])]
+                xs=[np.float32(ref[row][5]),np.float32(ref[row][6]),np.float32(ref[row][10]),np.float32(ref[row][12]),np.float32(ref[row][13]),np.float32(ref[row][16]),np.float32(ref[row][18]),np.float32(ref[row][19]),np.float32(ref[row][21]),np.float32(ref[row][22]),np.float32(ref[row][24])]
             elif(args.gender=='m'):
-                xs=[np.float32(ref[row][17]),np.float32(ref[row][20]),np.float32(ref[row][15]),np.float32(ref[row][14]),np.float32(ref[row][16]),np.float32(ref[row][13]),np.float32(ref[row][18]),np.float32(ref[row][19]),np.float32(ref[row][12]),np.float32(ref[row][11])]  
+                xs=[np.float32(ref[row][1]),np.float32(ref[row][2]),np.float32(ref[row][3]),np.float32(ref[row][4]),np.float32(ref[row][7]),np.float32(ref[row][9]),np.float32(ref[row][11]),np.float32(ref[row][14]),np.float32(ref[row][15]),np.float32(ref[row][17]),np.float32(ref[row][20]),np.float32(ref[row][23]),np.float32(ref[row][25]),np.float32(ref[row][26])]  
             xs_w=scipy.stats.mstats.winsorize(xs,limits=[0,0.05])                
             mean=sum(xs_w)/len(xs_w)     
             if(mean==0):
                     continue;
             std=np.std(xs_w)
-            pos=ref[row][21]
+            pos=ref[row][27]
             x=sample[row][1]           
             norm=scipy.stats.norm(mean, std).pdf(x)
             halfnorm=scipy.stats.norm(mean/2, std).pdf(x)
