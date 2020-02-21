@@ -579,7 +579,7 @@ def get_normal_avg_depth(sv_str):
     if chrom in depth_list:
         for depth in depth_list[chrom]:
             if depth[0]>=start and depth[1]<=end:
-                depth_sum += depth[2]
+                depth_sum += min(8,depth[2])
                 depth_count += 1
 
     if depth_count != 0:
