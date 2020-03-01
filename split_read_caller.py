@@ -1,7 +1,6 @@
-from __future__ import print_function
+import csv
 from multiprocessing import Pool
 from argparse import ArgumentParser
-import csv
 
 from utility import *
 
@@ -11,18 +10,6 @@ class SplitReadSv finds SV candidates of all chromosome based on the cigar strin
 
 
 class SplitReadCallerOptions:
-    """
-    def __init__(self, bam_file, chrom_list, out_bed2, min_sv_size, max_sv_size, target_sv_type, lt_10k_bed2, fai_file):
-        self.bam_file = bam_file
-        self.chrom_list = chrom_list
-        self.out_bed2 = out_bed2
-        self.min_sv_size = int(min_sv_size)
-        self.max_sv_size = int(max_sv_size)
-        self.target_sv_type = target_sv_type
-        self.lt_10k_bed2 = lt_10k_bed2
-        self.fai_file = fai_file
-    """
-
     def __init__(self, bam_file, chrom_list, min_sv_size, max_sv_size, target_sv_type, out_bed2, depth_bed2, term_threshold, lt_10k_bed2, fai_file):
         self.bam_file = bam_file
         self.chrom_list = chrom_list
@@ -81,13 +68,33 @@ class SplitReadCaller:
         for (type, length) in tuples:
             if config['cType'][type] == 'D' and length > config['cigarDelFragmentThreshold']:
                 bp_query_pos = query_pos if read_strand == '+' else read_length - query_pos
-                info_list.append({'bp_chrom': chrom, 'bp_chrom2': chrom, 'bp_start': ref_pos, 'bp_end': ref_pos+length,
-                                  'read_name': read.query_name, 'supp_type': 'cigar', 'bpType': 'DEL', 'read_strand':read_strand, 'bp_query_pos': bp_query_pos, 'read_seq': read.query_sequence})
+                info_list.append({
+                    'bp_chrom': chrom,
+                    'bp_chrom2': chrom,
+                    'bp_start': ref_pos,
+                    'bp_end': ref_pos+length,
+                    'read_name': read.query_name,
+                    'supp_type': 'cigar',
+                    'bpType': 'DEL',
+                    'read_strand': read_strand,
+                    'bp_query_pos': bp_query_pos,
+                    'read_seq': read.query_sequence
+                })
 
             if config['cType'][type] == 'I' and length > config['cigarInsFragmentThreshold']:
                 bp_query_pos = query_pos if read_strand == '+' else read_length - query_pos
-                info_list.append({'bp_chrom': chrom, 'bp_chrom2': chrom, 'bp_start': ref_pos, 'bp_end': ref_pos+length,
-                                  'read_name': read.query_name, 'supp_type': 'cigar', 'bpType': 'INS', 'read_strand':read_strand, 'bp_query_pos': bp_query_pos, 'read_seq': read.query_sequence})
+                info_list.append({
+                    'bp_chrom': chrom,
+                    'bp_chrom2': chrom,
+                    'bp_start': ref_pos,
+                    'bp_end': ref_pos+length,
+                    'read_name': read.query_name,
+                    'supp_type': 'cigar',
+                    'bpType': 'INS',
+                    'read_strand': read_strand,
+                    'bp_query_pos': bp_query_pos,
+                    'read_seq': read.query_sequence
+                })
 
             if config['cType'][type] in config['cTypeConsumeRef']:
                 ref_pos += length
@@ -95,7 +102,7 @@ class SplitReadCaller:
                 query_pos += length
 
         #merge and output
-        #assume there is only 1 target del/ins covered by a read (?)
+        # assume there is only 1 target del/ins covered by a read (?)
         curr_bp_type = None
         curr_bp_start = None
         curr_bp_end = None
@@ -122,18 +129,36 @@ class SplitReadCaller:
 
         if curr_bp_type == 'DEL':
             if curr_bp_start and curr_bp_end-curr_bp_start > config['cigarDelThreshold']:
-                indel_list.append({'bp_chrom': chrom, 'bp_chrom2': chrom, 'bp_start': curr_bp_start, 'bp_end': curr_bp_end,
-                                   'read_name': read.query_name, 'supp_type': 'cigar', 'sv_type': curr_bp_type, 'read_strand':read_strand, 'bp_query_pos': bp_query_pos,'read_seq': read.query_sequence})
+                indel_list.append({
+                    'bp_chrom': chrom,
+                    'bp_chrom2': chrom,
+                    'bp_start': curr_bp_start,
+                    'bp_end': curr_bp_end,
+                    'read_name': read.query_name,
+                    'supp_type': 'cigar',
+                    'sv_type': curr_bp_type,
+                    'read_strand': read_strand,
+                    'bp_query_pos': bp_query_pos,
+                    'read_seq': read.query_sequence
+                })
         elif curr_bp_type == 'INS':
             if curr_bp_start and curr_bp_end-curr_bp_start > config['cigarDelThreshold']:
-                indel_list.append({'bp_chrom': chrom, 'bp_chrom2': chrom, 'bp_start': curr_bp_start, 'bp_end': curr_bp_end,
-                                   'read_name': read.query_name, 'supp_type': 'cigar', 'sv_type': curr_bp_type, 'read_strand':read_strand, 'bp_query_pos': bp_query_pos, 'read_seq': read.query_sequence})
+                indel_list.append({
+                    'bp_chrom': chrom,
+                    'bp_chrom2': chrom,
+                    'bp_start': curr_bp_start,
+                    'bp_end': curr_bp_end,
+                    'read_name': read.query_name,
+                    'supp_type': 'cigar',
+                    'sv_type': curr_bp_type,
+                    'read_strand': read_strand,
+                    'bp_query_pos': bp_query_pos,
+                    'read_seq': read.query_sequence
+                })
 
         return indel_list
 
     def find_sv_region(self, chrom):
-        config = self.config
-
         sv_region_list = []
         covered_reads = {}
 
@@ -142,7 +167,7 @@ class SplitReadCaller:
             if read.is_secondary:
                 continue
 
-            #if read.is_supplementary:
+            # if read.is_supplementary:
             #    continue
 
             if read.query_name in covered_reads:
@@ -159,7 +184,6 @@ class SplitReadCaller:
                 if bp_info['sv_type'] not in ['TRA', 'TRA_INV']:
                     bp_length = bp_info['bp_end']-bp_info['bp_start']
 
-                    #if self.options.min_sv_size and bp_length < self.options.min_sv_size - config['bp_buf_size']:
                     if self.options.min_sv_size and bp_length + (bp_info['overlap'] if "overlap" in bp_info else 0) < self.options.min_sv_size:
                         continue
 
@@ -171,14 +195,10 @@ class SplitReadCaller:
         return sv_region_list
 
     def get_query_pos(self, orig_tuples, strand, total_read_length):
-        output = {'query_start': 0, 'query_end': 0}
-
         start = self.get_query_start_pos(orig_tuples, strand)
         end = self.get_query_end_pos(orig_tuples, strand, total_read_length)
 
-        output = {'query_start': start, 'query_end': end}
-
-        return output
+        return {'query_start': start, 'query_end': end}
 
     def get_split_info_detail(self, chrom, read_name, read_length, supp_list, read):
         config = self.config
@@ -216,7 +236,6 @@ class SplitReadCaller:
             tuples = cigar_string_to_tuples(supp_cigar_string)
             ref_length = 0
             for tuple in tuples:
-                #if tuple[0] in 'MDN=X':
                 if tuple[0] in config['cTypeConsumeRef']:
                     ref_length += int(tuple[1])
 
@@ -224,8 +243,15 @@ class SplitReadCaller:
 
             supp_query_pos = self.get_query_pos(tuples, supp_strand, read_length)
 
-            curr = {'ref_chrom': supp_chrom, 'ref_start': supp_ref_start, 'ref_end': supp_ref_end,
-                    'query_start': supp_query_pos['query_start'], 'query_end': supp_query_pos['query_end'], 'strand': supp_strand, 'clipped': supp_clipped}
+            curr = {
+                'ref_chrom': supp_chrom,
+                'ref_start': supp_ref_start,
+                'ref_end': supp_ref_end,
+                'query_start': supp_query_pos['query_start'],
+                'query_end': supp_query_pos['query_end'],
+                'strand': supp_strand,
+                'clipped': supp_clipped
+            }
 
             if not prev:
                 prev = curr
@@ -317,13 +343,13 @@ class SplitReadCaller:
                                 continue
 
                             query_diff = abs(bp_start_query - bp_end_query)
-                            #if query_diff < split_gap_threshold:
+                            # if query_diff < split_gap_threshold:
                             if True:
                                 sv_type = 'TRA_INV'
                                 bp_chrom2 = bp2['ref_chrom']
 
             # other types
-            #else:
+            # else:
             elif prev['ref_chrom'] == chrom and curr['ref_chrom'] == chrom:
                 if prev['ref_end'] < curr['ref_start']:
                     bp1, bp2 = prev, curr
@@ -378,7 +404,7 @@ class SplitReadCaller:
                             query_diff = abs(bp_start_query - bp_end_query)
 
                             if query_diff < split_gap_threshold:
-                            #if True:
+                                # if True:
                                 sv_type = 'DEL'
                                 #bp_end = bp_end + query_diff
 
@@ -429,7 +455,7 @@ class SplitReadCaller:
                     bp_query_pos = bp2['query_end']
 
                 info.append({'bp_chrom': chrom, 'bp_start': bp_start, 'bp_end': bp_end, 'read_name': read_name,
-                             'supp_type': 'splitRead', 'sv_type': sv_type, 'bp_chrom2': bp_chrom2, 'read_strand': read_strand, 'bp_query_pos': bp_query_pos, 'read_seq': read.query_sequence, 'overlap': max(0,curr['clipped']+prev['clipped']-len(read.query_sequence))})
+                             'supp_type': 'splitRead', 'sv_type': sv_type, 'bp_chrom2': bp_chrom2, 'read_strand': read_strand, 'bp_query_pos': bp_query_pos, 'read_seq': read.query_sequence, 'overlap': max(0, curr['clipped']+prev['clipped']-len(read.query_sequence))})
 
             prev = curr
 
@@ -482,7 +508,7 @@ class SplitReadCaller:
 
         pos = 0
         for (type, length) in tuples:
-            #if cType[type] in 'HS':
+            # if cType[type] in 'HS':
             if type in 'HS':
                 pos += int(length)
             else:
@@ -511,8 +537,6 @@ class SplitReadCaller:
     def get_pos_info(self, cigar_string, strand, ref_start):
         config = self.config
 
-        output = {'read_length': 0, 'ref_length': 0, 'ref_start': 0, 'ref_end': 0, 'query_start': 0, 'query_end': 0}
-
         read_length = 0
         ref_length = 0
 
@@ -520,7 +544,7 @@ class SplitReadCaller:
         for (type, length) in tuples:
             if type in config['cTypeConsumeRef']:
                 ref_length += length
-            #if type in cTypeConsumeQuery:
+            # if type in cTypeConsumeQuery:
             if type in config['cTypeConsumeRead']:
                 read_length += length
 
@@ -528,21 +552,24 @@ class SplitReadCaller:
         query_start = self.get_query_start_pos(tuples, strand)
         query_end = self.get_query_end_pos(tuples, strand, read_length)
 
-        output = {'read_length': read_length, 'ref_length': ref_length, 'ref_start': ref_start,
-                  'ref_end': ref_end, 'query_start': query_start, 'query_end': query_end}
+        output = {
+            'read_length': read_length,
+            'ref_length': ref_length,
+            'ref_start': ref_start,
+            'ref_end': ref_end,
+            'query_start': query_start,
+            'query_end': query_end,
+        }
 
         return output
 
     def get_bp_info(self, read, chrom):
-        info = []
-        info += self.get_cigar_info(read, chrom)
-        info += self.get_split_info(read, chrom)
-
-        return info
+        return self.get_cigar_info(read, chrom) + self.get_split_info(read, chrom)
 
     def __call__(self, chrom):
-        sv_region_list = self.find_sv_region(chrom)
-        return {'sv_region_list': sv_region_list}
+        return {
+            'sv_region_list': self.find_sv_region(chrom)
+        }
 
     def gen_bed2(self, results):
         options = self.options
@@ -563,7 +590,7 @@ class SplitReadCaller:
                     overlap = sv_region['overlap'] if 'overlap' in sv_region else 0
 
                     read_name = get_short_name(sv_region['read_name'])
-                    read_seq = sv_region['read_seq']
+                    # read_seq = sv_region['read_seq']
                     read_strand = sv_region['read_strand']
                     bp_query_pos = str(sv_region['bp_query_pos'])
 
@@ -574,10 +601,10 @@ class SplitReadCaller:
                     #line = [chrom, start, chrom2, end, sv_type, supp_type, read_name, read_seq]
                     line = [chrom, start, chrom2, end, sv_type, supp_type, read_name, read_strand, bp_query_pos]
 
-                    #if sv_type in ['DEL','DUP']  and int(end) - int(start) < options.min_sv_size:
+                    # if sv_type in ['DEL','DUP']  and int(end) - int(start) < options.min_sv_size:
                     #    continue
 
-                    if sv_type in ['DEL','DUP']  and int(end) - int(start) < lt_10k_max_sv_size:
+                    if sv_type in ['DEL', 'DUP'] and int(end) - int(start) < lt_10k_max_sv_size:
                         output_lt_10k['|'.join(line)] = 1
 
                         if int(end) - int(start) + overlap >= options.min_sv_size - config['bp_buf_size']:
@@ -606,7 +633,7 @@ class SplitReadCaller:
 
         #depth_buf_size = options.depth_buf_size
         depth_buf_size = 600000
-        depth_region = {'DEL':[], 'DUP':[]}
+        depth_region = {'DEL': [], 'DUP': []}
         with open(options.depth_bed2) as f:
             for line in f:
                 if not line.strip() or line[0] == '#':
@@ -632,9 +659,13 @@ class SplitReadCaller:
 
     def is_sa_in_region(self, sa, region_list):
         for region in region_list:
-            if sa['chrom'] == region['chrom'] and \
-                (region['start1'] <= sa['start'] <= region['start2'] or \
-                 region['end1'] <= sa['start'] <= region['end2']):
+            if (
+                sa['chrom'] == region['chrom'] and
+                (
+                    region['start1'] <= sa['start'] <= region['start2'] or
+                    region['end1'] <= sa['start'] <= region['end2']
+                )
+            ):
                 return True
 
         return False
@@ -646,7 +677,7 @@ class SplitReadCaller:
         sa_cigar_tuples = cigar_string_to_tuples(sa['cigar_string'])
         for tuple in sa_cigar_tuples:
             if tuple[0] in config['cTypeConsumeRef']:
-               sa_end += int(tuple[1])
+                sa_end += int(tuple[1])
 
         return sa_end
 
@@ -668,7 +699,6 @@ class SplitReadCaller:
     def call_indel(self):
         config = self.config
         options = self.options
-        indel_list = []
         indel_dict = {}
 
         print('call_indel_working')
@@ -680,11 +710,11 @@ class SplitReadCaller:
             target_bp_regions = []
 
             if region['start1'] > options.term_threshold:
-                target_bp_regions.append([region['start1'],region['start2']])
+                target_bp_regions.append([region['start1'], region['start2']])
 
             chrom_size = self.chrom_info[region['chrom']]
             if region['end2'] < chrom_size - options.term_threshold:
-                target_bp_regions.append([region['end1'],region['end2']])
+                target_bp_regions.append([region['end1'], region['end2']])
 
             for bp in target_bp_regions:
                 bam = pysam.AlignmentFile(options.bam_file, 'rb')
@@ -695,11 +725,11 @@ class SplitReadCaller:
                     if not read.has_tag('SA'):
                         continue
 
-                    del_side = ''
-                    if bp[0] == region['start1']:
-                        del_side = 'START'
-                    elif bp[0] == region['end1']:
-                        del_side = 'END'
+                    # del_side = ''
+                    # if bp[0] == region['start1']:
+                    #     del_side = 'START'
+                    # elif bp[0] == region['end1']:
+                    #     del_side = 'END'
 
                     read_name = get_short_name(read.query_name)
                     read_length = read.infer_read_length()
@@ -709,10 +739,10 @@ class SplitReadCaller:
 
                     for sa_str in read.get_tag('SA').strip(';').split(';'):
                         arr = sa_str.split(',')
-                        sa = {'chrom':arr[0], 'start':int(arr[1]), 'strand':arr[2], 'cigar_string':arr[3]}
+                        sa = {'chrom': arr[0], 'start': int(arr[1]), 'strand': arr[2], 'cigar_string': arr[3]}
 
                         #ins_info = self.get_ins_info(sa, self.depth_region['DUP'])
-                        #if ins_info['ins_side']:
+                        # if ins_info['ins_side']:
                         if self.is_sa_in_region(sa, self.depth_region['DUP']):
                             sa['end'] = self.get_sa_ref_end(sa)
 
@@ -749,23 +779,23 @@ class SplitReadCaller:
                                 else:
                                     ins_to_pos = sa['end']
 
-                            #if read_strand == sa['strand']:
+                            # if read_strand == sa['strand']:
                             #    sv_type = 'DELINS'
-                            #else:
+                            # else:
                             #    sv_type = 'DELINS2'
 
                             if query_pos1['query_start'] < query_pos2['query_start']:
-                                 if abs(query_pos1['query_end'] - query_pos2['query_start']) > config['split_gap_threshold']:
-                                     continue
+                                if abs(query_pos1['query_end'] - query_pos2['query_start']) > config['split_gap_threshold']:
+                                    continue
                             else:
-                                 if abs(query_pos2['query_end'] - query_pos1['query_start']) > config['split_gap_threshold']:
-                                     continue
+                                if abs(query_pos2['query_end'] - query_pos1['query_start']) > config['split_gap_threshold']:
+                                    continue
 
                             sv_type = ''
                             supp_type = 'adhoc'
                             if del_from_pos:
                                 if ins_from_pos:
-                                    sv_type  = 'DEL-FROM-INS-FROM'
+                                    sv_type = 'DEL-FROM-INS-FROM'
                                 else:
                                     sv_type = 'DEL-FROM-INS-TO'
                             else:
@@ -792,19 +822,29 @@ class SplitReadCaller:
                                 bp_read_strand = '+' if read_strand == '-' else '-'
 
                             if read_name not in indel_dict:
-                                indel_dict[read_name] = {'bp_chrom': del_chrom, 'bp_start': bp_start, \
-                                    'bp_chrom2': ins_chrom, 'bp_end': bp_end,
-                                    'sv_type': sv_type, 'read_name': read_name, 'read_strand': bp_read_strand, 'bp_query_pos': bp_query_pos, 'read_seq': '', 'supp_type': supp_type, 'overlap': 0}
+                                indel_dict[read_name] = {
+                                    'bp_chrom': del_chrom,
+                                    'bp_start': bp_start,
+                                    'bp_chrom2': ins_chrom,
+                                    'bp_end': bp_end,
+                                    'sv_type': sv_type,
+                                    'read_name': read_name,
+                                    'read_strand': bp_read_strand,
+                                    'bp_query_pos': bp_query_pos,
+                                    'read_seq': '',
+                                    'supp_type': supp_type,
+                                    'overlap': 0
+                                }
 
-        return {'sv_region_list':indel_dict.values()}
+        return {'sv_region_list': indel_dict.values()}
 
     def run(self):
         self.load_chrom_info()
         self.load_depth_region()
 
-        results = []
         chrom_list = self.options.chrom_list.split(',')
 
+        results = []
         pool = Pool(len(chrom_list))
         results = pool.map(self, chrom_list)
         pool.close()
@@ -816,7 +856,8 @@ class SplitReadCaller:
         if self.options.out_bed2:
             self.gen_bed2(results)
 
-def get_split_Read_caller_options(options):
+
+def get_split_read_caller_options(options):
     bam_file = options.bam_file
     chrom_list = options.chrom_list
     min_sv_size = options.min_sv_size
@@ -828,8 +869,18 @@ def get_split_Read_caller_options(options):
     lt_10k_bed2 = options.lt_10k_bed2
     fai_file = options.fai_file
 
-    return SplitReadCallerOptions(bam_file, chrom_list, min_sv_size, max_sv_size, \
-        target_sv_type, out_bed2, depth_bed2, term_threshold, lt_10k_bed2, fai_file)
+    return SplitReadCallerOptions(
+        bam_file,
+        chrom_list,
+        min_sv_size,
+        max_sv_size,
+        target_sv_type,
+        out_bed2,
+        depth_bed2,
+        term_threshold,
+        lt_10k_bed2,
+        fai_file,
+    )
 
 
 if __name__ == "__main__":
@@ -848,7 +899,7 @@ if __name__ == "__main__":
 
     options = parser.parse_args()
 
-    split_read_caller_options = get_split_Read_caller_options(options)
+    split_read_caller_options = get_split_read_caller_options(options)
 
     split_read_caller = SplitReadCaller(split_read_caller_options)
     split_read_caller.run()

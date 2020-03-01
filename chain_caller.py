@@ -1,9 +1,7 @@
-from __future__ import print_function
-from multiprocessing import Pool
-from argparse import ArgumentParser
 import logging
-import sys
 import csv
+from argparse import ArgumentParser
+from multiprocessing import Pool
 
 from utility import *
 from dp import *
@@ -38,14 +36,12 @@ class ChainCaller:
         self.bed2_file = '%s.dp.bed2' % (options.output_prefix)
 
     def load_config(self):
-        config = {}
-        config['pool_size'] = int(get_var('chain_caller', 'pool_size'))
-        config['buf_size'] = int(get_var('chain_caller', 'buf_size'))
-        config['max_chain_count'] = int(get_var('chain_caller', 'max_chain_count'))
-        config['gap_buf_size'] = int(get_var('dp', 'gap_buf_size'))
-        #config['normal_male_bam'] = get_var('chain_caller', 'normal_male_bam')
-
-        self.config = config
+        self.config = {
+            'pool_size': int(get_var('chain_caller', 'pool_size')),
+            'buf_size': int(get_var('chain_caller', 'buf_size')),
+            'max_chain_count': int(get_var('chain_caller', 'max_chain_count')),
+            'gap_buf_size': int(get_var('dp', 'gap_buf_size')),
+        }
 
     def load_depth_region(self, do_filter=0):
         options = self.options
@@ -78,11 +74,11 @@ class ChainCaller:
                     is_skip = 0
                     if normal_avg_depth < 0.5:
                         is_skip = 1
-                    elif options.gender == 'f' or chrom not in ['X','Y']:
+                    elif options.gender == 'f' or chrom not in ['X', 'Y']:
                         if options.gender == 'f' and chrom == 'Y':
                             is_skip = 1
 
-                        #if end - start >= options.min_sv_size_by_depth and avg_depth < 1:
+                        # if end - start >= options.min_sv_size_by_depth and avg_depth < 1:
                         #    is_skip = 1
                     """
                     else:
@@ -95,7 +91,12 @@ class ChainCaller:
                         print('gender = %s, avg depth = %f, depth region skipped: %s_%s_%s' % (options.gender, avg_depth, chrom, start, end))
                         continue
 
-                self.depth_region.append({'chrom': chrom, 'start': start, 'end': end, 'region_type': region_type})
+                self.depth_region.append({
+                    'chrom': chrom,
+                    'start': start,
+                    'end': end,
+                    'region_type': region_type,
+                })
 
         print('loaded depth_region count', len(self.depth_region))
 
@@ -118,17 +119,24 @@ class ChainCaller:
                    (region_type in ['INV'] and info['strand'] == info['strand2']):
                     continue
 
-            if info['bp_chrom'] == chrom and info['bp_chrom2'] == chrom and \
-               info['bp_start'] >= start1 and info['bp_start'] <= start2 and \
-               info['bp_end'] >= end1 and info['bp_end'] <= end2:
+            if (
+                info['bp_chrom'] == chrom and
+                info['bp_chrom2'] == chrom and
+                start1 <= info['bp_start'] <= start2 and
+                end1 <= info['bp_end'] <= end2
+            ):
                 if region_type in ['DEL', 'DUP'] and info['bp_end'] - info['bp_start'] < options.min_sv_size_by_depth:
                     continue
 
                 in_depth_region = 1
 
             if in_depth_region:
-                bp_depth_region_info['depth_region'] = \
-                    {'depth_chrom': chrom, 'depth_start': start, 'depth_end': end, 'region_type': region_type}
+                bp_depth_region_info['depth_region'] = {
+                    'depth_chrom': chrom,
+                    'depth_start': start,
+                    'depth_end': end,
+                    'region_type': region_type
+                }
 
         return bp_depth_region_info
 
@@ -169,10 +177,10 @@ class ChainCaller:
 
                         if not options.disable_dp_filter:
                             if 1.0 * score / (query_end - query_start) < 0.3:
-                            #if 1.0 * score / (query_end - query_start) < 0.25:
+                                # if 1.0 * score / (query_end - query_start) < 0.25:
                                 continue
 
-                        #if seed_count < 200:
+                        # if seed_count < 200:
                         #    continue
 
                         info = {'qname': get_short_name(qname), 'strand': strand, 'query_start': query_start, 'query_end': query_end,
@@ -190,22 +198,23 @@ class ChainCaller:
                             chain1, chain2 = chain[i], chain[j]
                         else:
                             chain1, chain2 = chain[j], chain[i]
-                        """
-                        info = {'qname': qname, 'strand': chain1['strand'], 'strand2': chain2['strand'],
-                                'bp_chrom': chain1['ref_chrom'], 'bp_start': (chain1['ref_start']+chain1['ref_end'])/2,
-                                'bp_chrom2': chain2['ref_chrom'], 'bp_end': (chain2['ref_start']+chain2['ref_end'])/2,
-                                'query_start': chain1['query_start'], 'query_end': chain2['query_end']}
-                        """
-                        info = {'qname': qname, 'strand': chain1['strand'], 'strand2': chain2['strand'],
-                                'bp_chrom': chain1['ref_chrom'], 'bp_start': chain1['ref_end'],
-                                'bp_chrom2': chain2['ref_chrom'], 'bp_end': chain2['ref_start'],
-                                'query_start': chain1['query_start'], 'query_end': chain2['query_end'], 'seq_len': chain2['seq_len']}
+
+                        info = {
+                            'qname': qname,
+                            'strand': chain1['strand'],
+                            'strand2': chain2['strand'],
+                            'bp_chrom': chain1['ref_chrom'],
+                            'bp_start': chain1['ref_end'],
+                            'bp_chrom2': chain2['ref_chrom'],
+                            'bp_end': chain2['ref_start'],
+                            'query_start': chain1['query_start'],
+                            'query_end': chain2['query_end'],
+                            'seq_len': chain2['seq_len'],
+                        }
 
                         bp_depth_region_info = self.get_bp_depth_region_info(info)
                         have_target_gap = 0
                         need_dp = 0
-
-                        #print('find_target_chain_list', info, bp_depth_region_info)
 
                         if bp_depth_region_info['depth_region']:
                             depth_region = bp_depth_region_info['depth_region']
@@ -220,14 +229,14 @@ class ChainCaller:
 
                             if region_type == 'DEL':
                                 if options.disable_dp_filter or (
-                                    #chain1['query_start'] < chain2['query_start'] and
-                                    #chain1['query_end'] <= chain2['query_end'] and
+                                    # chain1['query_start'] < chain2['query_start'] and
+                                    # chain1['query_end'] <= chain2['query_end'] and
                                     chain1['query_end'] < chain2['query_end'] and
 
                                     chain1['query_start'] < 150 and
                                     chain2['seq_len'] - chain2['query_end'] < 300 and
 
-                                    chain1['query_end'] + 500 >= chain2['query_start']):
+                                        chain1['query_end'] + 500 >= chain2['query_start']):
 
                                     #print('chain1', chain1)
                                     #print('chain2', chain2)
@@ -235,8 +244,8 @@ class ChainCaller:
                                     need_dp = 1
                             elif region_type == 'DUP':
                                 if options.disable_dp_filter or (
-                                    chain2['query_start'] <= chain1['query_start'] and
-                                    chain2['query_end'] < chain1['query_end']):
+                                        chain2['query_start'] <= chain1['query_start'] and
+                                        chain2['query_end'] < chain1['query_end']):
                                     need_dp = 1
                             elif region_type == 'INV':
                                 # Todo: add checking
@@ -247,12 +256,25 @@ class ChainCaller:
                             else:
                                 need_dp = 1
 
-                            self.target_chain_list.append({'have_target_gap': have_target_gap, 'need_dp': need_dp, 'qname': qname, 'strand': strand,
-                                                           'bp_chrom': info['bp_chrom'], 'bp_start': info['bp_start'],
-                                                           'bp_chrom2': info['bp_chrom2'], 'bp_end': info['bp_end'],
-                                                           'sv_type': region_type, 'depth_start': depth_start, 'depth_end': depth_end,
-                                                           #'query_start':info['query_start'], 'query_end':info['query_end'], 'score':info['score']})
-                                                           'query_start':info['query_start'], 'query_end':info['query_end'], 'seq_len': info['seq_len']})
+                            self.target_chain_list.append({
+                                'have_target_gap': have_target_gap,
+                                'need_dp': need_dp,
+                                'qname': qname,
+                                'strand': strand,
+                                'bp_chrom': info['bp_chrom'],
+                                'bp_start': info['bp_start'],
+                                'bp_chrom2': info['bp_chrom2'],
+                                'bp_end': info['bp_end'],
+                                'sv_type': region_type,
+                                'depth_start': depth_start,
+                                'depth_end': depth_end,
+                                # 'query_start':info['query_start'],
+                                # 'query_end':info['query_end'],
+                                # 'score':info['score']}),
+                                'query_start': info['query_start'],
+                                'query_end': info['query_end'],
+                                'seq_len': info['seq_len'],
+                            })
 
         """
         self.target_chain_list.sort(key=lambda x: x['seq_len'], reverse=True)
@@ -339,7 +361,7 @@ class ChainCaller:
                 output = [str(result[i]) for i in dp_header]
                 dp_writer.writerow(output)
 
-                #if result['score'] < result['query_len'] * 1.1:
+                # if result['score'] < result['query_len'] * 1.1:
                 if result['score'] < min(result['query_len'], config['gap_buf_size']*2) * 1.1:
                     continue
 
@@ -380,9 +402,8 @@ class ChainCaller:
             output = [str(chain[h]) for h in header]
             print('\t'.join(output))
 
-    def get_avg_depth(self, sv_str, use_normal_male_bam = 0):
+    def get_avg_depth(self, sv_str, use_normal_male_bam=0):
         options = self.options
-        config = self.config
 
         if use_normal_male_bam:
             #bam_file = config['normal_male_bam']
@@ -393,7 +414,7 @@ class ChainCaller:
         arr = sv_str.split('_')
         chrom, start, end = arr[0], int(arr[1]), int(arr[2])
 
-        #cmd = "samtools depth -a %s -r %s:%d-%d | awk '{ sum += $3 } END { if (NR > 0) print sum / NR }'" % \
+        # cmd = "samtools depth -a %s -r %s:%d-%d | awk '{ sum += $3 } END { if (NR > 0) print sum / NR }'" % \
         #      (options.bam_file, chrom, start, end)
 
         max_depth = 8
@@ -407,8 +428,6 @@ class ChainCaller:
         return float(output[0])
 
     def run(self):
-        config = self.config
-
         self.load_depth_region()
         self.find_target_chain_list()
 
@@ -428,8 +447,8 @@ class ChainCaller:
 
         logging.info('have_target_gap: %d, need_dp: %d' % (have_target_gap, need_dp))
 
-        #debug
-        #self.print_chain_list()
+        # debug
+        # self.print_chain_list()
 
         self.do_dp()
 
@@ -446,13 +465,7 @@ if __name__ == "__main__":
 
     parser.add_argument('-disable_dp_filter', '--disable_dp_filter', help='disable DP filter', required=False, type=int)
 
-    root = logging.getLogger()
-    root.setLevel(logging.DEBUG)
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setLevel(logging.DEBUG)
-    formatter = logging.Formatter('[%(asctime)s - %(levelname)s] - %(message)s')
-    handler.setFormatter(formatter)
-    root.addHandler(handler)
+    init_logger()
 
     options = parser.parse_args()
     chain_caller = ChainCaller(options)

@@ -1,17 +1,13 @@
-from __future__ import print_function
 import pysam
 import sys
 import os
 import re
-from random import randint
-from time import gmtime, strftime
 import subprocess
-from shutil import copyfile
-import glob
-import string
 import configparser
-import csv
+from glob import glob
+from subprocess import PIPE
 from multiprocessing import Pool
+from collections import defaultdict
 
 ASSEMBLE_SCRIPT = '%s/assemble.sh' % os.path.dirname(os.path.realpath(__file__))
 GET_SEQ_FROM_FASTQ_SCRIPT = '%s/get_seq_by_name.sh' % os.path.dirname(os.path.realpath(__file__))
@@ -20,50 +16,52 @@ config = None
 
 cytobands = {}
 
-# working: start
 
-cType = 'MIDNSHP=X'
-cTypeConsumeRef = 'MDN=X'
-cTypeConsumeQuery = 'MIS=X'
-cTypeConsumeRead = 'MIS=XH'
+def init_logger():
+    import logging
 
-def has_hard_clip(read):
-    tuples = read.cigartuples
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.DEBUG)
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setLevel(logging.DEBUG)
+    formatter = logging.Formatter('[%(asctime)s - %(levelname)s] - %(message)s')
+    handler.setFormatter(formatter)
+    root_logger.addHandler(handler)
 
-    if cType[tuples[0][0]] in 'H' or cType[tuples[-1][0]] in 'H':
-        return True
 
-    return False
+def log(message):
+    import logging
+    from time import time
+    from functools import wraps
 
-def get_seq(read, fastq_prefix, ext='.fastq.gz', return_all=False):
-    result = has_hard_clip(read)
+    def inner_function(function):
+        @wraps(function)
+        def wrapper(*args, **kwargs):
+            logging.info(f'{message}: begin')
+            start_time = time()
 
-    if has_hard_clip(read):
-        seq = get_seq_from_fastq(read.query_name, fastq_prefix, ext, return_all)
-    else:
-        if read.is_reverse:
-            seq = rev_comp(read.query_sequence)
-        else:
-            seq = read.query_sequence
+            function(*args, **kwargs)
 
-    return seq
+            end_time = time()
+            logging.info(f'{message}: end. time_elapsed: {int(end_time - start_time)} sec')
 
-# working: end
+        return wrapper
+
+    return inner_function
+
 
 def load_common_config():
-    config = {}
+    return {
+        'cType': get_var('denovo_common', 'cType'),
+        'cTypeConsumeRef': get_var('denovo_common', 'cTypeConsumeRef'),
+        'cTypeConsumeQuery': get_var('denovo_common', 'cTypeConsumeQuery'),
+        'cTypeConsumeRead': get_var('denovo_common', 'cTypeConsumeRead'),
 
-    config['cType'] = get_var('denovo_common', 'cType')
-    config['cTypeConsumeRef'] = get_var('denovo_common', 'cTypeConsumeRef')
-    config['cTypeConsumeQuery'] = get_var('denovo_common', 'cTypeConsumeQuery')
-    config['cTypeConsumeRead'] = get_var('denovo_common', 'cTypeConsumeRead')
-
-    config['minimap2'] = get_var('common', 'minimap2')
-    config['samtools'] = get_var('common', 'samtools')
-    config['ref_ver'] = get_var('common', 'ref_ver')
-    config['ref'] = get_var('common', 'ref_%s' % (config['ref_ver']))
-
-    return config
+        'minimap2': get_var('common', 'minimap2'),
+        'samtools': get_var('common', 'samtools'),
+        'ref_ver': get_var('common', 'ref_ver'),
+        'ref': get_var('common', 'ref_%s' % (get_var('common', 'ref_ver'))),
+    }
 
 
 def get_var(group, var):
@@ -85,52 +83,34 @@ def load_config():
 def get_ref(chr, start_orig, end):
     ref_ver = get_var('common', 'ref_ver')
 
+    padding_N = 'N' * (-start_orig)
+    start = max(start_orig, 1) - 1
+
     ref = pysam.FastaFile(get_var('common', 'ref_%s' % ref_ver))
 
-    padding = ''
-    if start_orig < 1:
-        padding = 'N' * (-start_orig)
-        start = 1
-    else:
-        start = start_orig
-
-    nts = padding + ref.fetch(str(chr), start-1, end)
-
-    return nts.upper()
+    return (padding_N + ref.fetch(str(chr), start, end)).upper()
 
 
 def rev_comp(seq):
-    trans = string.maketrans('ACGT', 'TGCA')
+    trans = str.maketrans('ACGT', 'TGCA')
     return seq.translate(trans)[::-1]
-
-
-def get_read_mapq(read):
-    mapq = read.mapping_quality
-    return mapq
-
-
-def get_read_qual(read):
-    mapq = get_read_mapq(read)
-    qual = 1 - 10 ** (-mapq / 10.0)
-    return qual
 
 
 def get_seq_from_fastq(read_name, fastq_prefix, ext='.fastq.gz', return_all=False):
     seq = ''
 
-    files = glob.glob(fastq_prefix + ext)
-    isFound = 0
-    for filename in files:
-        cmd = '%s %s %s' % (GET_SEQ_FROM_FASTQ_SCRIPT, read_name, filename)
-        output = subprocess.check_output(cmd, shell=True).splitlines()
+    for filename in glob(fastq_prefix + ext):
+        cmd = f'{GET_SEQ_FROM_FASTQ_SCRIPT} {read_name} {filename}'
+        output = subprocess.check_output(cmd, shell=True, universal_newlines=True).splitlines()
 
-        if len(output) == 4 and output[0].startswith('@' + read_name):
-            if return_all:
-                return output
-            else:
-                seq = output[1]
-                isFound = 1
-                break
+        if not (len(output) == 4 and output[0].startswith('@' + read_name)):
+            continue
+
+        if return_all:
+            return output
+        else:
+            seq = output[1]
+            break
 
     if not seq:
         print("ERROR: get_seq_from_fastq: read %s not found. fastq_prefix=%s" % (read_name, fastq_prefix))
@@ -140,54 +120,45 @@ def get_seq_from_fastq(read_name, fastq_prefix, ext='.fastq.gz', return_all=Fals
 
 
 def cigar_string_to_tuples(cigar_string):
-    tuples = re.findall(r'(\d+)(\w)', cigar_string)
+    cigar_tuples = re.findall(r'(\d+)(\w)', cigar_string)
 
-    cigar_tuples = []
-    for tuple in tuples:
-        cigar_tuples.append([tuple[1], int(tuple[0])])
+    return [(cigar_tuple[1], int(cigar_tuple[0])) for cigar_tuple in cigar_tuples]
 
-    return cigar_tuples
 
 def get_compact_cigar_string(cigar_string, start_clip_count, end_clip_count):
     cond_cigar = {'startS': 0, 'M': 0, 'D': 0, 'I': 0, 'endS': 0}
 
     cigar_tuples = cigar_string_to_tuples(cigar_string)
+    first_cigar_tuple, last_cigar_tuple = cigar_tuples[0], cigar_tuples[-1]
 
-    if cigar_tuples[0][0] in 'HS':
-        cond_cigar['startS'] += int(cigar_tuples[0][1]) + start_clip_count
+    if first_cigar_tuple[0] in 'HS':
+        cond_cigar['startS'] += first_cigar_tuple[1] + start_clip_count
 
-    if cigar_tuples[-1][0] in 'HS':
-        cond_cigar['endS'] += int(cigar_tuples[-1][1]) + end_clip_count
+    if last_cigar_tuple[0] in 'HS':
+        cond_cigar['endS'] += last_cigar_tuple[1] + end_clip_count
 
-    for (type, length) in cigar_tuples:
-        if type == 'M':
-            cond_cigar['M'] += int(length)
-        elif type == 'I':
-            cond_cigar['I'] += int(length)
-        elif type == 'D':
-            cond_cigar['D'] += int(length)
+    for (operation_type, length) in cigar_tuples:
+        if operation_type in 'MID':
+            cond_cigar[operation_type] += length
 
     cond_cigar_string = ''
     for key in ['startS', 'M', 'I', 'D', 'endS']:
-        if cond_cigar[key] >= 0:
-            if key in ['startS', 'endS']:
-                type = 'S'
-            else:
-                type = key
-            cond_cigar_string += '%d%s' % (cond_cigar[key], type)
+        if cond_cigar[key] < 0:
+            continue
+
+        if key in ['startS', 'endS']:
+            operation_type = 'S'
+        else:
+            operation_type = key
+
+        cond_cigar_string += '%d%s' % (cond_cigar[key], operation_type)
 
     return cond_cigar_string
 
 
-def run_shell_cmd(cmd, stdinInput=None):
-    p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE)
-    if stdinInput:
-        out, err = p.communicate(stdinInput)
-    else:
-        out, err = p.communicate()
-
-    #if err:
-    #    print(err)
+def run_shell_cmd(cmd, stdin_input=None):
+    p = subprocess.Popen(cmd, shell=True, stdout=PIPE, stderr=PIPE, stdin=PIPE, universal_newlines=True)
+    out, _err = p.communicate(stdin_input) if stdin_input else p.communicate()
 
     return out
 
@@ -195,97 +166,79 @@ def run_shell_cmd(cmd, stdinInput=None):
 def load_cytobands():
     global cytobands
 
-    cytobands = {}
-    with open('data_file/cytoband') as f:
+    cytobands = defaultdict(list)
+    with open('data_file/cytoband', 'r') as f:
         for line in f:
             arr = line.strip().split()
             if arr[0][0] == '#':
                 continue
 
-            chrom = arr[0].replace('chr', '')
-            if not chrom.isdigit() and chrom not in ['X', 'Y']:
+            chr = arr[0].replace('chr', '')
+            if not chr.isdigit() and chr not in ['X', 'Y']:
                 continue
 
-            chromStart = int(arr[1])
-            chromEnd = int(arr[2])
+            chr_start, chr_end = int(arr[1]), int(arr[2])
             name = arr[3]
             #gieStain = arr[4]
 
-            if chrom not in cytobands:
-                cytobands[chrom] = []
-
-            cytobands[chrom].append({'chromStart': chromStart, 'chromEnd': chromEnd, 'name': name})
+            cytobands[chr].append({'chromStart': chr_start, 'chromEnd': chr_end, 'name': name})
 
 
-def get_cytoband(chrom, pos_str):
+def get_cytoband(chr, pos_str):
     global cytobands
 
-    ##not thread-safe ?
-    #if not cytobands:
+    # not thread-safe ?
+    # if not cytobands:
     #    load_cytobands()
 
-    cytoband = ''
-    pos = int(pos_str)
+    for entry in cytobands[chr]:
+        if entry['chromStart'] <= int(pos_str) < entry['chromEnd']:
+            return entry['name']
 
-    list = cytobands[chrom]
-    found = 0
-    for entry in list:
-        if pos >= entry['chromStart'] and pos < entry['chromEnd']:
-            cytoband = entry['name']
-            break
-
-    return cytoband
+    return ''
 
 
 def is_same_arm(chrom1, pos1, chrom2, pos2):
     cytoband1 = get_cytoband(chrom1, pos1)
     cytoband2 = get_cytoband(chrom2, pos2)
 
-    if cytoband1 and cytoband2 and cytoband1[0] == cytoband2[0]:
-        return True
-    else:
-        return False
+    return (cytoband1 and cytoband2 and cytoband1[0] == cytoband2[0])
 
 
-def align(refInfoList, queryInfoList, file_prefix):
+def align(ref_info_list, query_info_list, file_prefix):
     # gen fasta
-    fasta_name = file_prefix + '.fasta'
-    fasta = open(fasta_name, 'w')
+    with open(file_prefix + '.fasta', 'w') as fasta:
+        for query_info in query_info_list:
+            query_seq_name = query_info['query_seq_name']
+            query_seq = query_info['query_seq']
 
-    for queryInfo in queryInfoList:
-        query_seq_name = queryInfo['query_seq_name']
-        query_seq = queryInfo['query_seq']
-
-        print('>%s' % query_seq_name, file=fasta)
-        print('%s' % query_seq, file=fasta)
-
-    fasta.close()
+            print('>%s' % query_seq_name, file=fasta)
+            print('%s' % query_seq, file=fasta)
 
     # gen fa
-    ref_name = file_prefix + '.fa'
-    ref = open(ref_name, 'w')
+    with open(file_prefix + '.fa', 'w') as ref:
+        for ref_info in ref_info_list:
+            ref_seq_name = ref_info['ref_seq_name']
+            ref_seq = ref_info['ref_seq']
 
-    for refInfo in refInfoList:
-        ref_seq_name = refInfo['ref_seq_name']
-        ref_seq = refInfo['ref_seq']
-
-        print('>%s' % ref_seq_name, file=ref)
-        seqArr = [ref_seq[i: i + 70] for i in range(0, len(ref_seq), 70)]
-        for seq in seqArr:
-            print('%s' % seq, file=ref)
-
-    ref.close()
+            print('>%s' % ref_seq_name, file=ref)
+            sequence_list = [ref_seq[i: i + 70] for i in range(0, len(ref_seq), 70)]
+            for sequence in sequence_list:
+                print('%s' % sequence, file=ref)
 
     # realign
-    samtools = get_var('common', 'samtools')
+    # cmd = 'timeout 120 '
     cmd = ''
-    #cmd = 'timeout 120 '
     if get_var('common', 'aligner') == 'minimap2':
-        cmd += "%s -t 48 -a %s.fa %s.fasta | %s sort -@ 24 -o %s.bam - && %s index -@ 24 %s.bam &> %s.log" % \
-            (get_var('common', 'minimap2'), file_prefix, file_prefix, samtools, file_prefix, samtools, file_prefix, file_prefix)
+        minimap2 = get_var('common', 'minimap2')
+        cmd += "%s -t 48 -a %s.fa %s.fasta" % (minimap2, file_prefix, file_prefix)
     else:
-        cmd += "%s -t 24 -r %s.fa -q %s.fasta -x ont | %s sort -@ 24 -o %s.bam - && %s index %s.bam &> %s.log" % \
-            (get_var('common', 'ngmlr'), file_prefix, file_prefix, samtools, file_prefix, samtools, file_prefix, file_prefix)
+        ngmlr = get_var('common', 'ngmlr')
+        cmd += "%s -t 24 -r %s.fa -q %s.fasta -x ont" % (ngmlr, file_prefix, file_prefix)
+
+    samtools = get_var('common', 'samtools')
+    cmd += " | %s sort -@ 24 -o %s.bam - && %s index %s.bam &> %s.log" % (
+        samtools, file_prefix, samtools, file_prefix, file_prefix)
 
     run_shell_cmd(cmd)
 
@@ -295,9 +248,7 @@ def gen_altref_align_seq(sv_str, working_path, fastq_prefix, query_read_name_lis
     bp_chrom, bp_start, bp_chrom2, bp_end, sv_type = arr[0], int(arr[1]), arr[2], int(arr[3]), arr[4]
 
     # ref pos
-    ref_start = bp_start - config['ref_buf_size']
-    if ref_start < 1:
-        ref_start = 1
+    ref_start = max(bp_start - config['ref_buf_size'], 1)
     ref_end = bp_end + config['ref_buf_size']
 
     # file_prefix
@@ -309,20 +260,19 @@ def gen_altref_align_seq(sv_str, working_path, fastq_prefix, query_read_name_lis
     file_prefix = '%s/%s_%d_%s_%d_%s' % (working_path, bp_chrom, bp_start, bp_chrom2, bp_end, sv_type)
 
     ref_seq = ''
-    bpSeq = ''
+    bp_seq = ''
     if sv_type == 'DEL':
-        bpSeq = ''
+        bp_seq = ''
     elif sv_type == 'INV':
-        bpSeq += rev_comp(get_ref(bp_chrom, bp_start, bp_end))
+        bp_seq += rev_comp(get_ref(bp_chrom, bp_start, bp_end))
     elif sv_type == 'DUP':
-        bpSeq += get_ref(bp_chrom, bp_start, bp_end)
-        bpSeq += get_ref(bp_chrom, bp_start, bp_end)
+        bp_seq += get_ref(bp_chrom, bp_start, bp_end)
+        bp_seq += get_ref(bp_chrom, bp_start, bp_end)
     elif sv_type == 'INS':
-        bpSeq = 'XXX'
+        bp_seq = 'XXX'
     elif sv_type in ['TRA', 'TRA_INV']:
-        bpSeq = ''
+        bp_seq = ''
 
-    ref_info_list = []
     # altref seq
     if sv_type == 'TRA':
         altref_seq = get_ref(bp_chrom, bp_start - config['ref_buf_size'], bp_start - 1)
@@ -338,11 +288,11 @@ def gen_altref_align_seq(sv_str, working_path, fastq_prefix, query_read_name_lis
         altref_seq += get_ref(bp_chrom2, bp_end + 1, bp_end + config['ref_buf_size'])
     else:
         altref_seq = get_ref(bp_chrom, ref_start, bp_start - 1)
-        altref_seq += bpSeq
+        altref_seq += bp_seq
         altref_seq += get_ref(bp_chrom2, bp_end + 1, ref_end)
 
     altref_seq_name_list = ['altref']
-    ref_info_list.append({'ref_seq_name': 'altref', 'ref_seq': altref_seq})
+    ref_info_list = [{'ref_seq_name': 'altref', 'ref_seq': altref_seq}]
 
     # ref seq
     if sv_type in ['TRA', 'TRA_INV']:
@@ -361,8 +311,14 @@ def gen_altref_align_seq(sv_str, working_path, fastq_prefix, query_read_name_lis
         query_seq = get_seq_from_fastq(query_seq_name, fastq_prefix)
         query_info_list.append({'query_seq_name': query_seq_name, 'query_seq': query_seq})
 
-    return {'file_prefix': file_prefix, 'ref_seq_name_list': ref_seq_name_list, 'altref_seq_name_list': altref_seq_name_list,
-            'ref_info_list': ref_info_list, 'query_info_list': query_info_list}
+    return {
+        'file_prefix': file_prefix,
+        'ref_seq_name_list': ref_seq_name_list,
+        'altref_seq_name_list': altref_seq_name_list,
+        'ref_info_list': ref_info_list,
+        'query_info_list': query_info_list,
+    }
+
 
 def get_clip_seq(read, fastq_prefix):
     config = load_common_config()
@@ -404,10 +360,12 @@ def get_clip_seq(read, fastq_prefix):
             start_hard_clip_count = 0
             if config['cType'][cigar_tuples[0][0]] == 'H':
                 start_hard_clip_count = cigar_tuples[0][1]
-            clip['end']['seq'] = get_hard_clip_seq(read, start_hard_clip_count, query_pos, clip['end']['length'], fastq_prefix)
+            clip['end']['seq'] = get_hard_clip_seq(read, start_hard_clip_count,
+                                                   query_pos, clip['end']['length'], fastq_prefix)
             clip['end']['query_pos'] = start_hard_clip_count + query_pos
 
     return clip
+
 
 def get_hard_clip_seq(read, start_hard_clip_count, query_start_pos, length, fastq_prefix):
     seq = get_seq_from_fastq(read.query_name, fastq_prefix)
@@ -431,6 +389,7 @@ def get_hard_clip_seq(read, start_hard_clip_count, query_start_pos, length, fast
     else:
         print('cannot find %s' % read.query_name)
         return ''
+
 
 def gen_altref_seq(sv_str, buf_size):
     bp_chrom, bp_start, bp_chrom2, bp_end, bp_type = sv_str.split('_')
@@ -477,117 +436,43 @@ def gen_altref_seq(sv_str, buf_size):
 
     return ref_info
 
-"""
-def get_normal_avg_depth(sv_str):
-    bam_file = get_var('chain_caller', 'normal_male_bam')
 
-    arr = sv_str.split('_')
-    chrom, start, end = arr[0], int(arr[1]), int(arr[2])
-
-    max_depth = 8
-    cmd = "samtools depth -a -a %s -r %s:%d-%d | \
-          awk '{ max=%d; depth = ($3<max?$3:max); sum += depth } END { if (NR > 0) print sum / NR }'" % \
-          (bam_file, chrom, start, end, max_depth)
-
-    output = run_shell_cmd(cmd).split('\n')
-
-    return float(output[0])
-
-def filter_depth_file(gender, orig_depth_file, new_depth_file):
-    # load depth file
-    depth_regions = []
-    with open(orig_depth_file) as f:
-        for line in f:
-            if not line.strip() or line[0] == '#':
-                continue
-
-            arr = line.strip().split()
-            arr[0] = 'X' if arr[0] == '23' else 'Y' if arr[0] == '24' else arr[0]
-
-            chrom, start, end, score, region_type = arr[0], int(float(arr[1])), int(float(arr[2])), int(float(arr[3])), arr[4]
-
-            sv_str = '%s_%d_%d' % (chrom, start, end)
-            normal_avg_depth = get_normal_avg_depth(sv_str)
-
-            is_skip = 0
-            if normal_avg_depth < 0.5:
-                is_skip = 1
-            elif gender == 'f' or chrom not in ['X','Y']:
-                if gender == 'f' and chrom == 'Y':
-                    is_skip = 1
-
-            if is_skip:
-                print('gender = %s, normal avg depth = %f, depth region skipped: %s_%s_%s' % (gender, normal_avg_depth, chrom, start, end))
-                continue
-
-            depth_regions.append({'chrom': chrom, 'start': start, 'end': end, 'score': score, 'region_type': region_type})
-
-    # save depth file
-    with open(new_depth_file, 'w') as f:
-        writer = csv.writer(f, delimiter='\t')
-        for region in depth_regions:
-            row = [region['chrom'], str(region['start']), str(region['end']), str(region['score']), region['region_type']]
-            writer.writerow(row)
-"""
-
-"""
-def get_normal_avg_depth(sv_str):
-
-    bam_file = get_var('chain_caller', 'normal_male_bam')
-
-    arr = sv_str.split('_')
-    chrom, start, end = arr[0], int(arr[1]), int(arr[2])
-    
-    max_depth = 8
-    cmd = "samtools depth -a -a %s -r %s:%d-%d | \
-          awk '{ max=%d; depth = ($3<max?$3:max); sum += depth } END { if (NR > 0) print sum / NR }'" % \
-          (bam_file, chrom, start, end, max_depth)
-
-    output = run_shell_cmd(cmd).split('\n')
-
-    return {'sv_str':sv_str, 'normal_avg_depth':float(output[0])}
-"""
 def load_depth_list():
+    l = defaultdict(list)
+    with open("depth/depth_list", 'r') as f:
+        for line in f:
+            chrom, start, end, depth = line.strip().split("\t")
+            start = int(start)
+            end = int(end)
+            depth = float(depth)
 
-    f = open("depth/depth_list", 'r')
-    l = {}
-
-    for line in f:
-        chrom, start, end, depth = line.strip().split("\t")
-        start = int(start)
-        end = int(end)
-        depth = float(depth)
-
-        if chrom in l:
-            l[chrom].append((start, end, depth))
-        else:
-            l[chrom] = []
             l[chrom].append((start, end, depth))
 
     return l
 
+
 def get_normal_avg_depth(sv_str):
-
-    depth_list = load_depth_list()
-
     arr = sv_str.split('_')
     chrom, start, end = arr[0], int(arr[1]), int(arr[2])
 
     depth_sum = 0
     depth_count = 0
 
+    depth_list = load_depth_list()
     if chrom in depth_list:
         for depth in depth_list[chrom]:
-            if depth[0]>=start and depth[1]<=end:
+            if depth[0] >= start and depth[1] <= end:
                 depth_sum += depth[2]
                 depth_count += 1
 
     if depth_count != 0:
-        return {'sv_str':sv_str, 'normal_avg_depth':1.0*depth_sum/depth_count}
+        return {
+            'sv_str': sv_str,
+            'normal_avg_depth': 1.0*depth_sum/depth_count
+        }
     else:
         return 0
 
-        
 
 def filter_depth_file(gender, orig_depth_file, new_depth_file):
     # load depth file
@@ -602,7 +487,8 @@ def filter_depth_file(gender, orig_depth_file, new_depth_file):
             arr = line.strip().split()
             arr[0] = 'X' if arr[0] == '23' else 'Y' if arr[0] == '24' else arr[0]
 
-            chrom, start, end, score, region_type = arr[0], int(float(arr[1])), int(float(arr[2])), int(float(arr[3])), arr[4]
+            chrom, start, end, score, region_type = \
+                arr[0], int(float(arr[1])), int(float(arr[2])), int(float(arr[3])), arr[4]
 
             sv_str = '%s_%d_%d_%d_%s' % (chrom, start, end, score, region_type)
             sv_str_list.append(sv_str)
@@ -613,37 +499,52 @@ def filter_depth_file(gender, orig_depth_file, new_depth_file):
     pool.join()
 
     for result in results:
-        is_skip = 0
-
         sv_str = result['sv_str']
         normal_avg_depth = result['normal_avg_depth']
 
+        is_skip = 0
         if result['normal_avg_depth'] < 0.5:
             is_skip = 1
-        elif gender == 'f' or chrom not in ['X','Y']:
+        elif gender == 'f' or chrom not in ['X', 'Y']:
             if gender == 'f' and chrom == 'Y':
                 is_skip = 1
 
         if is_skip:
-            print('gender = %s, normal avg depth = %f, depth region skipped: %s_%s_%s' % (gender, normal_avg_depth, chrom, start, end))
+            print('gender = %s, normal avg depth = %f, depth region skipped: %s_%s_%s' %
+                  (gender, normal_avg_depth, chrom, start, end))
             continue
 
         arr = sv_str.split('_')
         chrom, start, end, score, region_type = arr[0], arr[1], arr[2], arr[3], arr[4]
-        depth_regions.append({'chrom': chrom, 'start': start, 'end': end, 'score': score, 'region_type': region_type})
+        depth_regions.append({
+            'chrom': chrom,
+            'start': start,
+            'end': end,
+            'score': score,
+            'region_type': region_type,
+        })
 
     # save depth file
+    import csv
     with open(new_depth_file, 'w') as f:
         writer = csv.writer(f, delimiter='\t')
         for region in depth_regions:
-            row = [region['chrom'], str(region['start']), str(region['end']), str(region['score']), region['region_type']]
+            row = [
+                region['chrom'],
+                str(region['start']),
+                str(region['end']),
+                str(region['score']),
+                region['region_type'],
+            ]
             writer.writerow(row)
 
+
 def get_sorted_sv_str_list(sv_str_dict):
-    toIntStr = lambda text: text if text.isdigit() else '23' if text == 'X' else '24'
-    return sorted(sv_str_dict, key=lambda k: k.split('_')[4].rjust(17) + \
-        toIntStr(k.split('_')[0]).rjust(2) + k.split('_')[1].rjust(9) + \
-        toIntStr(k.split('_')[2]).rjust(2) + k.split('_')[3].rjust(9))
+    def toIntStr(text): return text if text.isdigit() else '23' if text == 'X' else '24'
+    return sorted(sv_str_dict, key=lambda k: k.split('_')[4].rjust(17) +
+                  toIntStr(k.split('_')[0]).rjust(2) + k.split('_')[1].rjust(9) +
+                  toIntStr(k.split('_')[2]).rjust(2) + k.split('_')[3].rjust(9))
+
 
 def get_short_name(read_name):
     return read_name[0:12]

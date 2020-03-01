@@ -1,12 +1,11 @@
-from __future__ import print_function
-from multiprocessing import Pool
 from argparse import ArgumentParser
-import logging
+from multiprocessing import Pool
 
 from dp import *
 from utility import *
 
 merge_dist = 100
+
 
 class BpToolsOptions:
     def __init__(self, input_bed2, output_bed2, fastq_prefix, min_sv_size, max_sv_size):
@@ -64,7 +63,10 @@ class BpTools:
                 score_ratio = 0
                 if len(arr) == 10:
                     score_ratio = arr[8]
-                sv_str_dict['%s_%s_%s_%s_%s' % (chrom, start, chrom2, end, type)] = {'value':arr[5:], 'score_ratio': score_ratio}
+                sv_str_dict['%s_%s_%s_%s_%s' % (chrom, start, chrom2, end, type)] = {
+                    'value': arr[5:],
+                    'score_ratio': score_ratio
+                }
 
         sorted_sv_str_list = get_sorted_sv_str_list(sv_str_dict)
 
@@ -74,8 +76,15 @@ class BpTools:
             arr = sv_str.split('_')
             value = sv_str_dict[sv_str]['value']
             score_ratio = sv_str_dict[sv_str]['score_ratio']
-            curr_sv = {'chrom':arr[0], 'start':int(arr[1]), 'chrom2':arr[2], 'end':int(arr[3]), 'type':arr[4], \
-                'value':value, 'score_ratio': score_ratio}
+            curr_sv = {
+                'chrom': arr[0],
+                'start': int(arr[1]),
+                'chrom2': arr[2],
+                'end': int(arr[3]),
+                'type': arr[4],
+                'value': value,
+                'score_ratio': score_ratio
+            }
 
             if curr_sv['type'] in ['DEL', 'DUP']:
                 if options.min_sv_size and curr_sv['end'] - curr_sv['start'] < options.min_sv_size:
@@ -86,30 +95,40 @@ class BpTools:
             if merged_sv_str:
                 arr = merged_sv_str.split('_')
                 merged_sv = {'chrom': arr[0], 'start': int(arr[1]), 'chrom2': arr[2], 'end': int(arr[3]), 'type': arr[4]}
-                if curr_sv['type'] == merged_sv['type'] and \
-                    curr_sv['chrom'] == merged_sv['chrom'] and \
-                    curr_sv['chrom2'] == merged_sv['chrom2'] and \
-                    abs(curr_sv['start']-merged_sv['start']) < merge_dist and \
-                    abs(curr_sv['end']-merged_sv['end']) < merge_dist:
-
+                if (
+                    curr_sv['type'] == merged_sv['type'] and
+                    curr_sv['chrom'] == merged_sv['chrom'] and
+                    curr_sv['chrom2'] == merged_sv['chrom2'] and
+                    abs(curr_sv['start']-merged_sv['start']) < merge_dist and
+                    abs(curr_sv['end']-merged_sv['end']) < merge_dist
+                ):
                     if curr_sv['score_ratio'] > merged_sv_dict[merged_sv_str]['score_ratio']:
-                         del merged_sv_dict[merged_sv_str]
-                         merged_sv_str = sv_str
-                         merged_sv_dict[merged_sv_str] = {'value': curr_sv['value'], 'score_ratio': curr_sv['score_ratio']}
+                        del merged_sv_dict[merged_sv_str]
+                        merged_sv_str = sv_str
+                        merged_sv_dict[merged_sv_str] = {
+                            'value': curr_sv['value'],
+                            'score_ratio': curr_sv['score_ratio'],
+                        }
                 else:
                     merged_sv_str = sv_str
-                    merged_sv_dict[merged_sv_str] = {'value': curr_sv['value'], 'score_ratio': curr_sv['score_ratio']}
+                    merged_sv_dict[merged_sv_str] = {
+                        'value': curr_sv['value'],
+                        'score_ratio': curr_sv['score_ratio'],
+                    }
             else:
                 merged_sv_str = sv_str
-                merged_sv_dict[merged_sv_str] = {'value':value,'score_ratio':score_ratio}
+                merged_sv_dict[merged_sv_str] = {
+                    'value': value,
+                    'score_ratio': score_ratio,
+                }
 
         sorted_list = get_sorted_sv_str_list(merged_sv_dict)
         with open(options.output_bed2, 'w') as f:
             for key in sorted_list:
-               value = merged_sv_dict[key]['value']
-               output = key.split('_')
-               output.extend(value)
-               print('\t'.join(output), file=f)
+                value = merged_sv_dict[key]['value']
+                output = key.split('_')
+                output.extend(value)
+                print('\t'.join(output), file=f)
 
     def load_param_str_list(self):
         options = self.options
@@ -145,10 +164,21 @@ class BpTools:
         pool.close()
         pool.join()
 
-        header = ['chrom','genomic_gap_start','chrom2','genomic_gap_end','sv_type','qname','query_len','score','score_read_length_ratio','query_pos']
+        header = [
+            'chrom',
+            'genomic_gap_start',
+            'chrom2',
+            'genomic_gap_end',
+            'sv_type',
+            'qname',
+            'query_len',
+            'score',
+            'score_read_length_ratio',
+            'query_pos',
+        ]
         with open(options.output_bed2, 'w') as f:
             for result in results:
-                #adjustment of query_pos
+                # adjustment of query_pos
                 result['query_pos'] = result['bp_query_pos']+(result['query_pos']-result['local_bp_query_pos'])
 
                 #print('result', result)
@@ -162,7 +192,7 @@ class BpTools:
                     if int(result['genomic_gap_start']) > int(result['genomic_gap_end']):
                         result['genomic_gap_start'], result['genomic_gap_end'] = result['genomic_gap_end'], result['genomic_gap_start']
 
-                #if result['sv_type'] in ['DEL']:
+                # if result['sv_type'] in ['DEL']:
                 #    if abs(int(result['genomic_gap_start']) - int(result['genomic_gap_end'])) < 10000:
                 #        continue
 
@@ -173,21 +203,22 @@ class BpTools:
 
                 result['score_read_length_ratio'] = '%.2f' % (1. * result['score'] / result['query_len'])
 
-                #if result['genomic_gap_start'] > 0 and result['genomic_gap_end'] > 0:
+                # if result['genomic_gap_start'] > 0 and result['genomic_gap_end'] > 0:
                 row = [str(result[x]) for x in header]
                 is_filtered = 0
-                #if float(result['score_read_length_ratio']) < self.min_score_read_length_ratio:
+                # if float(result['score_read_length_ratio']) < self.min_score_read_length_ratio:
                 if False:
                     is_filtered = 1
                 elif result['sv_type'] == 'DEL':
                     if (options.min_sv_size and result['genomic_gap_end'] - result['genomic_gap_start'] < options.min_sv_size) or \
-                        (options.max_sv_size and result['genomic_gap_end'] - result['genomic_gap_start'] > options.max_sv_size):
+                            (options.max_sv_size and result['genomic_gap_end'] - result['genomic_gap_start'] > options.max_sv_size):
                         is_filtered = 1
 
                 if not is_filtered:
                     print('\t'.join(row), file=f)
                 else:
                     print('#'+'\t'.join(row), file=f)
+
 
 if __name__ == "__main__":
     parser = ArgumentParser(description='run')
@@ -199,13 +230,7 @@ if __name__ == "__main__":
 
     parser.add_argument('-action', '--action', help='action', required=False)
 
-    root = logging.getLogger()
-    root.setLevel(logging.DEBUG)
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setLevel(logging.DEBUG)
-    formatter = logging.Formatter('[%(asctime)s - %(levelname)s] - %(message)s')
-    handler.setFormatter(formatter)
-    root.addHandler(handler)
+    init_logger()
 
     options = parser.parse_args()
     bp_tools = BpTools(options)

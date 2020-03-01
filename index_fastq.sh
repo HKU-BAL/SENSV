@@ -23,5 +23,9 @@ out_gz=${out_prefix}.fastq.gz
 
 echo "out_gz=$out_gz"
 
-${PIGZ} -fdc -p ${nthread} ${in_fastq_gz} | tee >($BGZIP -@ ${nthread} -c > ${out_gz}) | awk 'NR%4==1 {print substr($1,2),NR}' | sort --parallel=${nthread} > ${out_gz}.idx
+${PIGZ} -fdc -p ${nthread} ${in_fastq_gz} | \
+tee >($BGZIP -@ ${nthread} -c > ${out_gz}) | \
+awk 'NR%4==1 {print substr($1,2),NR}' | \
+sort --parallel=${nthread} > ${out_gz}.idx
+
 ${GRABIX} index ${out_gz}

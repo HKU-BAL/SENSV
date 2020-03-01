@@ -1,9 +1,9 @@
-from __future__ import print_function
-from multiprocessing import Pool
-from argparse import ArgumentParser
 import pysam
+from argparse import ArgumentParser
+from multiprocessing import Pool
 
 from utility import *
+
 
 class Bam2Fasta:
     def __init__(self, options):
@@ -22,7 +22,7 @@ class Bam2Fasta:
         bam = pysam.AlignmentFile(self.input_bam, 'rb')
         for read in bam.fetch():
             # ** need to include secondary reads
-            #if read.is_secondary:
+            # if read.is_secondary:
             #    continue
 
             if read.query_name not in read_info:
@@ -62,6 +62,7 @@ class Bam2Fasta:
         self.read_bam()
         self.read_fastq()
         self.gen_fasta()
+
 
 if __name__ == "__main__":
     parser = ArgumentParser(description='run')

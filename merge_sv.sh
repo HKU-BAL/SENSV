@@ -24,7 +24,7 @@ merge_bed=${in_bed2}.merge.bed
 merge_file=${in_bed2}.merge.txt
 merge_bed2=${out_bed2}
 
-survivor=
+survivor=SURVIVOR
 max_dist_between_bp=100
 min_supp=2
 min_sv_size=1000

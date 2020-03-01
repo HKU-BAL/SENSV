@@ -4,18 +4,19 @@
 
 ### Step 1. Install required packages
 ```
-# config for conda
+# add conda channels
 conda config --add channels defaults
 conda config --add channels bioconda
 conda config --add channels conda-forge
 
-conda install minimap2 samtools pigz grabix pypy survivor
+# create conda environemnt named sensv-env
+conda create -n sensv-env python=3.7
 
-# for python2
-pip install pandas
-pip install scipy
-pip install pysam
+# activate newly created conda environemnt
+conda activate sensv-env
 
+# install conda packages
+conda install minimap2=2.17 samtools=1.10 pigz=2.3.4 grabix=0.1.8 pypy3.6 survivor=1.0.6 pandas=1.0.1 scipy=1.4.1 pysam=0.15.3
 ```
 
 ### Step 2. Clone the repository

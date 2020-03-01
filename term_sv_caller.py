@@ -1,7 +1,7 @@
-from __future__ import print_function
 import os
 from utility import *
 import csv
+
 
 class TermSvCallerOptions:
     def __init__(self, name, in_bam, depth_file, fai_file, output_prefix, term_threshold, min_clip_size, fastq, term_seq_file_basepath, ref, out_bed2_file, buf_size):
@@ -18,6 +18,7 @@ class TermSvCallerOptions:
         self.out_bed2_file = out_bed2_file
         self.buf_size = buf_size
 
+
 class TermSvCaller:
     def __init__(self, options):
         self.options = options
@@ -29,7 +30,7 @@ class TermSvCaller:
             pass
 
         self.term_region = []
-        self.bp_reads = {'start':{}, 'end':{}}
+        self.bp_reads = {'start': {}, 'end': {}}
         self.called_reads = {}
 
     def load_depth_region(self):
@@ -68,14 +69,10 @@ class TermSvCaller:
 
                 self.chrom_info[chrom] = size
 
-        #print('loaded chrom_info', self.chrom_info)
-
     def find_term_region(self):
         options = self.options
 
         self.term_region = []
-
-        #print('depth_region', self.depth_region)
 
         for region in self.depth_region:
             chrom = region['chrom']
@@ -84,14 +81,10 @@ class TermSvCaller:
 
             chrom_size = self.chrom_info[chrom]
 
-            #print('start', start, 'end', end)
-
             if start < options.term_threshold:
                 self.term_region.append({'chrom': chrom, 'pos': end, 'side': 'start'})
             if end > chrom_size - options.term_threshold:
                 self.term_region.append({'chrom': chrom, 'pos': start, 'side': 'end'})
-
-        #print('term_region', self.term_region)
 
     def get_region_file_name(self, region, type):
         options = self.options
@@ -100,7 +93,6 @@ class TermSvCaller:
             prefix = '%s_%s_%s_%s' % (options.output_prefix, region['chrom'], region['pos'], region['side'])
             return '%s.%s' % (prefix, type)
         else:
-
             return 'assembled_ref/HG001_assembled.fa'
 
     def gen_fasta(self, term_region):
@@ -111,8 +103,6 @@ class TermSvCaller:
         fasta = open(fasta_file, 'w')
 
         term_chrom = term_region['chrom']
-        #term_start = term_region['pos'] - options.term_threshold
-        #term_end = term_region['pos'] + options.term_threshold
         term_start = 1 if term_region['pos'] <= options.buf_size else term_region['pos'] - options.buf_size
         term_end = term_region['pos'] + options.buf_size
         term_side = term_region['side']
@@ -141,31 +131,24 @@ class TermSvCaller:
                         reads[read_name] += 1
 
                     new_read_name = '%s_%s' % (read_name, reads[read_name])
-                    self.bp_reads[term_side][new_read_name] = {'bp':pos}
+                    self.bp_reads[term_side][new_read_name] = {'bp': pos}
 
                     print('>%s' % (new_read_name), file=fasta)
                     print('%s' % (clip_seq), file=fasta)
-
-                    #rows = get_seq_from_fastq(read.query_name, options.fastq, '', True)
-                    #print('%s' % (rows[1]), file=fasta)
 
     def align(self, region):
         options = self.options
 
         samtools = get_var('common', 'samtools')
-        term_seq_file = '%s/%s_%s.fa' % (options.term_seq_file_basepath, region['chrom'], region['side'])
+        # term_seq_file = '%s/%s_%s.fa' % (options.term_seq_file_basepath, region['chrom'], region['side'])
 
         fasta = self.get_region_file_name(region, 'fasta')
         ref = self.get_region_file_name(region, 'ref')
         out_bam = self.get_region_file_name(region, 'bam')
 
         cmd = "%s -Y -t 48 -a %s %s | %s sort -@ 24 -o %s - && %s index -@ 24 %s &> %s.log" % \
-                (get_var('common', 'minimap2'), ref, fasta, samtools, out_bam, samtools, out_bam, out_bam)
+            (get_var('common', 'minimap2'), ref, fasta, samtools, out_bam, samtools, out_bam, out_bam)
 
-        #cmd = "%s --hard-mask-level -M 0 -Y -t 48 -a %s %s | %s sort -@ 24 -o %s - && %s index -@ 24 %s &> %s.log" % \
-        #        (get_var('common', 'minimap2'), ref, fasta, samtools, out_bam, samtools, out_bam, out_bam)
-
-        #print('cmd', cmd)
         run_shell_cmd(cmd)
 
     def get_read_support_info(self, read):
@@ -173,7 +156,7 @@ class TermSvCaller:
 
         support_info = {'name': read.query_name, 'is_support': False, 'is_assembled_seq': False, 'seq_chrom': None, 'seq_pos': 0}
 
-        read_name = read.query_name
+        # read_name = read.query_name
         ref_name = read.reference_name
 
         arr = ref_name.split('_')
@@ -200,13 +183,9 @@ class TermSvCaller:
         return support_info
 
     def check_result(self, region):
-        options = self.options
-
         term_chrom, term_pos, term_side = region['chrom'], region['pos'], region['side']
 
         bam_file = self.get_region_file_name(region, 'bam')
-
-        #print('bam file', bam_file)
 
         bam = pysam.AlignmentFile(bam_file, 'rb')
 
@@ -223,11 +202,25 @@ class TermSvCaller:
                         read_length = read.infer_read_length()
 
                         if term_side == 'end':
-                            self.called_reads[read_name] = {'chrom':term_chrom, 'bp1':self.bp_reads[term_side][read_name]['bp'], 'chrom2':term_chrom, 'bp2':0, \
-                                'AS':read_support_info['AS'], 'read_name': get_short_name(read_name), 'read_length': read_length}
+                            self.called_reads[read_name] = {
+                                'chrom': term_chrom,
+                                'bp1': self.bp_reads[term_side][read_name]['bp'],
+                                'chrom2': term_chrom,
+                                'bp2': 0,
+                                'AS': read_support_info['AS'],
+                                'read_name': get_short_name(read_name),
+                                'read_length': read_length,
+                            }
                         else:
-                            self.called_reads[read_name] = {'chrom':term_chrom, 'bp1':0, 'chrom2':term_chrom, 'bp2':self.bp_reads[term_side][read_name]['bp'], \
-                                'AS':read_support_info['AS'], 'read_name': get_short_name(read_name), 'read_length': read_length}
+                            self.called_reads[read_name] = {
+                                'chrom': term_chrom,
+                                'bp1': 0,
+                                'chrom2': term_chrom,
+                                'bp2': self.bp_reads[term_side][read_name]['bp'],
+                                'AS': read_support_info['AS'],
+                                'read_name': get_short_name(read_name),
+                                'read_length': read_length,
+                            }
 
     def write_results(self):
         options = self.options
@@ -237,8 +230,16 @@ class TermSvCaller:
             writer = csv.writer(f, delimiter='\t')
             for read_name in called_reads:
                 called_read = called_reads[read_name]
-                row = [called_read['chrom'], called_read['bp1'], called_read['chrom2'], called_read['bp2'], \
-                    'TERM-DEL', called_read['read_name'], called_read['read_length'], called_read['AS']]
+                row = [
+                    called_read['chrom'],
+                    called_read['bp1'],
+                    called_read['chrom2'],
+                    called_read['bp2'],
+                    'TERM-DEL',
+                    called_read['read_name'],
+                    called_read['read_length'],
+                    called_read['AS'],
+                ]
                 writer.writerow(row)
 
     def run(self):
@@ -254,6 +255,7 @@ class TermSvCaller:
         self.write_results()
 
         return self.called_reads
+
 
 if __name__ == "__main__":
     from argparse import ArgumentParser
@@ -272,8 +274,19 @@ if __name__ == "__main__":
     parser.add_argument('-buf_size', '--buf_size', help='buf size', required=True, type=int)
 
     options = parser.parse_args()
-    term_sv_caller_options = TermSvCallerOptions(options.name, options.bam, options.depth_file, options.fai_file, \
-        options.output_prefix, options.term_threshold, options.min_clip_size, options.fastq, \
-        options.term_seq_file_basepath, options.ref, 'term_sv_caller.bed2', options.buf_size)
+    term_sv_caller_options = TermSvCallerOptions(
+        options.name,
+        options.bam,
+        options.depth_file,
+        options.fai_file,
+        options.output_prefix,
+        options.term_threshold,
+        options.min_clip_size,
+        options.fastq,
+        options.term_seq_file_basepath,
+        options.ref,
+        'term_sv_caller.bed2',
+        options.buf_size,
+    )
     term_sv_caller = TermSvCaller(term_sv_caller_options)
     term_sv_caller.run()
