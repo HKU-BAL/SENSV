@@ -1,8 +1,14 @@
 from argparse import ArgumentParser
 from multiprocessing import Pool
 
-from dp import *
-from utility import *
+from dp import DpOptions, DP
+from utility import (
+    get_var,
+    get_seq_from_fastq,
+    get_sorted_sv_str_list,
+    rev_comp,
+    init_logger
+)
 
 merge_dist = 100
 
@@ -141,7 +147,7 @@ class BpTools:
 
                 arr = line.strip().split()
                 if len(arr) == 9:
-                    chrom, start, chrom2, end, sv_type, supp_type, query_name, query_strand, query_pos = \
+                    chrom, start, chrom2, end, sv_type, _supp_type, query_name, query_strand, query_pos = \
                         arr[0], int(arr[1]), arr[2], int(arr[3]), arr[4], arr[5], arr[6], arr[7], arr[8]
 
                     sv_str = '%s_%d_%s_%d_%s' % (chrom, start, chrom2, end, sv_type)

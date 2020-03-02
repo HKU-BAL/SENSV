@@ -3,8 +3,16 @@ import csv
 from argparse import ArgumentParser
 from multiprocessing import Pool
 
-from utility import *
-from dp import *
+from dp import DpOptions, DP
+from utility import (
+    get_var,
+    get_short_name,
+    get_seq_from_fastq,
+    get_normal_avg_depth,
+    rev_comp,
+    run_shell_cmd,
+    init_logger,
+)
 
 """
 class ChainCaller finds target SV regions based on chain info.
@@ -171,7 +179,7 @@ class ChainCaller:
                             break
 
                         idx = 4+i*8
-                        chain_id, seed_count, query_start, query_end, ref_chrom, ref_start, ref_end, score = \
+                        _chain_id, seed_count, query_start, query_end, ref_chrom, ref_start, ref_end, score = \
                             int(arr[idx]), int(arr[idx+1]), int(arr[idx+2]), int(arr[idx+3]), arr[idx+4], \
                             int(arr[idx+5]), int(arr[idx+6]), int(arr[idx+7])
 

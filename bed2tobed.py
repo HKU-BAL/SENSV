@@ -1,5 +1,5 @@
-from __future__ import print_function
 from argparse import ArgumentParser
+
 
 def run(options):
     with open(options.in_bed2, 'r') as f_in:
@@ -48,6 +48,7 @@ def run(options):
                     temp = 1 if end <= options.search_size else end - options.search_size
                     row = [chrom2, str(temp), str(end + options.search_size)]
                     print('\t'.join(row), file=f_out)
+
 
 if __name__ == "__main__":
     parser = ArgumentParser(description='run')

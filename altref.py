@@ -1,11 +1,24 @@
 import pysam
 import csv
 import math
-from os import makedirs
+from sys import exit
+from os import makedirs, path
 from multiprocessing import Pool
-from collections import namedtuple
+from collections import defaultdict
 
-from utility import *
+from utility import (
+    get_var,
+    run_shell_cmd,
+    get_ref,
+    rev_comp,
+    is_same_arm,
+    load_common_config,
+    load_cytobands,
+    get_short_name,
+    get_sorted_sv_str_list,
+    get_seq_from_fastq,
+    init_logger,
+)
 
 """
 class Altref generates contigs of alt. ref for each of the SV candidates.
@@ -32,16 +45,22 @@ class Altref:
         except:
             pass
 
-        self.altref = '%s.altref' % (options.output_prefix)
-        self.localref = '%s.localref' % (options.output_prefix)
-        self.out_ref = '%s.fa' % (options.output_prefix)
-        self.out_bam = '%s_minimap2.bam' % (options.output_prefix)
-        self.out_result = '%s.result' % (options.output_prefix)
-        self.out_filtered_result = '%s_filtered.result' % (options.output_prefix)
-        self.out_filtered_bed2 = '%s_filtered.bed2' % (options.output_prefix)
-        self.filtered_read_fasta = '%s_filtered.fasta' % (options.output_prefix)
+        self.output_prefix = options.output_prefix
+        self.fastq = options.fastq
+        self.orig_bam = options.orig_bam
+        self.input_bed2 = options.input_bed2
+        self.action = options.action
 
-        self.options = options
+        output_prefix = options.output_prefix
+        self.name = options.name
+        self.altref = '%s.altref' % (output_prefix)
+        self.localref = '%s.localref' % (output_prefix)
+        self.out_ref = '%s.fa' % (output_prefix)
+        self.out_bam = '%s_minimap2.bam' % (output_prefix)
+        self.out_result = '%s.result' % (output_prefix)
+        self.out_filtered_result = '%s_filtered.result' % (output_prefix)
+        self.out_filtered_bed2 = '%s_filtered.bed2' % (output_prefix)
+        self.filtered_read_fasta = '%s_filtered.fasta' % (output_prefix)
 
         load_cytobands()
 
@@ -67,28 +86,24 @@ class Altref:
 
     # load input sv candidates from bed2 file
     def load_bed2(self):
-        options = self.options
-
         sv_str_dict = {}
-
-        with open(options.input_bed2) as f:
+        with open(self.input_bed2) as f:
             for line in f:
                 if not line.strip() or line[0] == '#':
                     continue
 
                 arr = line.strip().split()
-                #arr = line.strip().split('_')
                 supp_type = None
                 chrom, start, chrom2, end, type = arr[0], int(arr[1]), arr[2], int(arr[3]), arr[4]
                 if len(arr) >= 6:
                     if arr[5] in ['cigar']:
                         supp_type = arr[5]
-                sv_str_dict['%s_%s_%s_%s_%s' % (chrom, start, chrom2, end, type)] = {
+                sv_str_dict[f'{chrom}_{start}_{chrom2}_{end}_{type}'] = {
                     'supp_type': supp_type
                 }
 
-        self.sv_str_list = list(sv_str_dict.keys())
         self.sv_str_dict = sv_str_dict
+        self.sv_str_list = list(sv_str_dict.keys())
 
     # generate contig of alt. ref based on SV candidates
     def gen_altref_file(self, sv_str=None):
@@ -99,25 +114,20 @@ class Altref:
             sv_str_list = self.sv_str_list
             fa_file = self.altref
 
-        ref_info_list = []
-        for sv_str in sv_str_list:
-            ref_info = self.get_altref_info(sv_str)
-            ref_info_list.append(ref_info)
+        ref_info_list = [self.get_altref_info(sv_str) for sv_str in sv_str_list]
 
         # gen fa
-        out_file = open(fa_file, 'w')
-        for ref_info in ref_info_list:
-            for info in ref_info:
-                ref_seq_name = info['ref_seq_name']
-                ref_seq = info['ref_seq']
-                desc = info['desc']
+        with open(fa_file, 'w') as out_file:
+            for ref_info in ref_info_list:
+                for info in ref_info:
+                    ref_seq_name = info['ref_seq_name']
+                    ref_seq = info['ref_seq']
+                    desc = info['desc']
 
-                print('>%s %s' % (ref_seq_name, desc), file=out_file)
-                seq_arr = [ref_seq[i: i + 70] for i in range(0, len(ref_seq), 70)]
-                for seq in seq_arr:
-                    print('%s' % seq, file=out_file)
-
-        out_file.close()
+                    print('>%s %s' % (ref_seq_name, desc), file=out_file)
+                    seq_arr = [ref_seq[i: i + 70] for i in range(0, len(ref_seq), 70)]
+                    for seq in seq_arr:
+                        print('%s' % seq, file=out_file)
 
     def gen_localref_file(self, target_sv_str=None):
         if target_sv_str:
@@ -163,8 +173,6 @@ class Altref:
     # format of sv_str: '1_start_1_end_type'
     def get_altref_info(self, sv_str):
         config = self.config
-
-        #print('sv_str', sv_str)
 
         bp_chrom, bp_start, bp_chrom2, bp_end, bp_type = sv_str.split('_')
         bp_start, bp_end = int(bp_start), int(bp_end)
@@ -221,7 +229,7 @@ class Altref:
                 seq += get_ref(bp_chrom2, bp_end+1, bp_end+config['buf_size'])
         else:
             print('Error. Invalid type: %s' % (bp_type))
-            sys.exit(0)
+            exit(0)
 
         ref_info.append({'ref_seq_name': 'altref_%s' % sv_str, 'ref_seq': seq, 'desc': desc})
 
@@ -230,7 +238,7 @@ class Altref:
     def get_localref_info(self, sv_str):
         config = self.config
 
-        bp_chrom, bp_start, bp_chrom2, bp_end, bp_type = sv_str.split('_')
+        bp_chrom, bp_start, _bp_chrom2, bp_end, _bp_type = sv_str.split('_')
         bp_start, bp_end = int(bp_start), int(bp_end)
 
         ref_info = []
@@ -246,31 +254,33 @@ class Altref:
     # get info of original alignment
     def get_orig(self, read_name, sv_str):
         config = self.config
-        options = self.options
+        search_size = config['search_size']
 
-        orig = {'AS': 0, 'MAPQ': 0}
-        bp_chrom, bp_start, bp_chrom2, bp_end, bp_type = sv_str.split('_')
+        bp_chrom, bp_start, bp_chrom2, bp_end, _bp_type = sv_str.split('_')
         bp_start, bp_end = int(bp_start), int(bp_end)
 
-        bam = pysam.AlignmentFile(options.orig_bam, 'rb')
+        orig = {'AS': 0, 'MAPQ': 0}
+        bam = pysam.AlignmentFile(self.orig_bam, 'rb')
 
-        for pos in [[bp_chrom, bp_start], [bp_chrom2, bp_end]]:
-            for read in bam.fetch(pos[0], pos[1]-config['search_size'] if pos[1] > config['search_size'] else 1, pos[1]+config['search_size']):
+        for chr, pos in [[bp_chrom, bp_start], [bp_chrom2, bp_end]]:
+            for read in bam.fetch(chr, pos - search_size if pos > search_size else 1, pos + search_size):
                 if read.is_secondary:
                     continue
-                if get_short_name(read.query_name) == read_name:
-                    MAPQ = read.mapping_quality
-                    AS = int(read.get_tag('AS'))
+                if get_short_name(read.query_name) != read_name:
+                    continue
 
-                    if AS > orig['AS']:
-                        orig['AS'] = AS
-                        orig['MAPQ'] = MAPQ
+                AS = int(read.get_tag('AS'))
+                if AS > orig['AS']:
+                    orig = {'AS': AS, 'MAPQ': read.mapping_quality}
 
         return orig
 
     # get indel info
     def get_indel_info(self, read, span):
-        config = self.config
+        max_indel_span = self.config['max_indel_span']
+        cType = self.config['cType']
+        cTypeConsumeQuery = self.config['cTypeConsumeQuery']
+        cTypeConsumeRef = self.config['cTypeConsumeRef']
 
         indel_info = {
             'all': 0,
@@ -290,35 +300,33 @@ class Altref:
         query_pos = 0
         cigar_tuples = read.cigartuples
 
-        indel_info['left']['span'] = min(config['max_indel_span'], span['left'])
-        indel_info['right']['span'] = min(config['max_indel_span'], span['right'])
+        indel_info['left']['span'] = min(max_indel_span, span['left'])
+        indel_info['right']['span'] = min(max_indel_span, span['right'])
 
         start = span['left'] - indel_info['left']['span']
         end = span['left'] + indel_info['right']['span']
 
-        #print('span', span, 'start', start, 'end', end)
-
         for type, length in cigar_tuples:
             if start <= query_pos <= end:
                 side = 'left' if query_pos <= span['left'] else 'right'
-                if config['cType'][type] in 'ID':
+                if cType[type] in 'ID':
                     indel_info[side]['indel_count'] += 1
                     indel_info[side]['indel_length'] += length
 
-            if config['cType'][type] in config['cTypeConsumeQuery']:
+            if cType[type] in cTypeConsumeQuery:
                 query_pos += length
-            if config['cType'][type] in config['cTypeConsumeRef']:
+            if cType[type] in cTypeConsumeRef:
                 ref_pos += length
 
         indel_info['all'] = indel_info['left']['indel_length'] + indel_info['right']['indel_length']
-
-        #print('indel_info', indel_info)
 
         return indel_info
 
     # get alignment score info
     def get_AS(self, read, span):
-        config = self.config
+        cType = self.config['cType']
+        cTypeConsumeQuery = self.config['cTypeConsumeQuery']
+        cTypeConsumeRef = self.config['cTypeConsumeRef']
 
         aligned_pairs = read.get_aligned_pairs(matches_only=False, with_seq=True)
         aligned_pairs_dict = dict((x, {'pos': y, 'seq': z}) for x, y, z in aligned_pairs)
@@ -330,18 +338,18 @@ class Altref:
         cigar_tuples = read.cigartuples
         for type, length in cigar_tuples:
             side = 'left' if query_pos <= span['left'] else 'right'
-            if config['cType'][type] in 'M=':
+            if cType[type] in 'M=':
                 for i in range(length):
                     if aligned_pairs_dict[query_pos + i]['seq'] in 'ACGT':
                         AS[side] += 2
                     if aligned_pairs_dict[query_pos + i]['seq'] in 'acgt':
                         AS[side] -= 4
-            elif config['cType'][type] in 'ID':
-                AS[side] -= min(4+length*2, 24+length*1)
+            elif cType[type] in 'ID':
+                AS[side] -= min(4 + length * 2, 24 + length * 1)
 
-            if config['cType'][type] in config['cTypeConsumeQuery']:
+            if cType[type] in cTypeConsumeQuery:
                 query_pos += length
-            if config['cType'][type] in config['cTypeConsumeRef']:
+            if cType[type] in cTypeConsumeRef:
                 ref_pos += length
 
         AS['all'] = AS['left'] + AS['right']
@@ -350,7 +358,7 @@ class Altref:
 
     # generate ref file with contigs of alt. ref
     def gen_ref_file(self, sv_str=None):
-        config = self.config
+        ref = self.config['ref']
 
         if sv_str:
             altref = '%s_%s' % (self.altref, sv_str)
@@ -359,12 +367,13 @@ class Altref:
             altref = self.altref
             out_ref = self.out_ref
 
-        cmd = "cat %s %s > %s" % (config['ref'], altref, out_ref)
+        cmd = "cat %s %s > %s" % (ref, altref, out_ref)
         run_shell_cmd(cmd)
 
     # alignment
     def align(self, sv_str=None):
-        config = self.config
+        minimap2 = self.config['minimap2']
+        samtools = self.config['samtools']
 
         if sv_str:
             out_ref = '%s_%s.fa' % (self.altref, sv_str)
@@ -375,18 +384,18 @@ class Altref:
             fastq = self.filtered_read_fasta
             out_bam = self.out_bam
 
-        ref_size = math.ceil(1.*os.path.getsize(out_ref)/1024/1024/1024+.5)
+        ref_size = math.ceil(1. * path.getsize(out_ref) / 1024 / 1024 / 1024 + .5)
         if ref_size > 4:
             cmd = "%s -Y -I %dG -t 48 --MD -a %s %s | %s sort -@ 48 -o %s - && %s index -@ 48 %s" % \
-                (config['minimap2'], ref_size, out_ref, fastq, config['samtools'], out_bam, config['samtools'], out_bam)
+                (minimap2, ref_size, out_ref, fastq, samtools, out_bam, samtools, out_bam)
         else:
             cmd = "%s -Y -t 48 --MD -a %s %s | %s sort -@ 48 -o %s - && %s index -@ 48 %s" % \
-                (config['minimap2'], out_ref, fastq, config['samtools'], out_bam, config['samtools'], out_bam)
+                (minimap2, out_ref, fastq, samtools, out_bam, samtools, out_bam)
         #print('cmd', cmd)
         run_shell_cmd(cmd)
 
     def get_mapq(self, sv_str, read_list):
-        mapq = {}
+        mapq = defaultdict(dict)
 
         out_bam = '%s_%s.bam' % (self.altref, sv_str)
         bam = pysam.AlignmentFile(out_bam, 'rb')
@@ -397,15 +406,15 @@ class Altref:
             arr = read.query_name.split('_')
             read_name, part = arr[0], arr[1]
 
-            if read_name not in mapq:
-                mapq[read_name] = {}
             mapq[read_name][part] = read.mapping_quality
 
         return mapq
 
     # get span of alignment
     def get_span(self, read, bp_start):
-        config = self.config
+        cType = self.config['cType']
+        cTypeConsumeQuery = self.config['cTypeConsumeQuery']
+        cTypeConsumeRef = self.config['cTypeConsumeRef']
 
         aligned_pairs = read.get_aligned_pairs(matches_only=False, with_seq=True)
         aligned_pairs_dict = dict((x, {'pos': y, 'seq': z}) for x, y, z in aligned_pairs)
@@ -424,32 +433,32 @@ class Altref:
         query_pos = 0
         for type, length in cigar_tuples:
             side = 'left' if ref_pos <= bp_start else 'right'
-            if config['cType'][type] in 'M=':
+            if cType[type] in 'M=':
                 #span['match_' + side ] += length
                 for i in range(length):
                     if aligned_pairs_dict[query_pos + i]['seq'] in 'ACGT':
                         span['match_' + side] += 1
 
-            if config['cType'][type] in config['cTypeConsumeQuery']:
-                if config['cType'][type] not in 'HS':
+            if cType[type] in cTypeConsumeQuery:
+                if cType[type] not in 'HS':
                     span[side] += length
 
                 query_pos += length
 
-            if config['cType'][type] in config['cTypeConsumeRef']:
+            if cType[type] in cTypeConsumeRef:
                 ref_pos += length
 
-        span['ref_left'] = bp_start-read.reference_start
-        span['ref_right'] = read.reference_end-bp_start
+        span['ref_left'] = bp_start - read.reference_start
+        span['ref_right'] = read.reference_end - bp_start
 
         return span
 
     def gen_sv_result(self, sv_str):
-        config = self.config
+        buf_size = self.config['buf_size']
+        min_mapq = self.config['min_mapq']
+        cType = self.config['cType']
 
-        #print("working on %s ..." % sv_str)
-
-        bp_chrom, bp_start, bp_chrom2, bp_end, bp_type = sv_str.split('_')
+        _bp_chrom, bp_start, _bp_chrom2, bp_end, bp_type = sv_str.split('_')
         bp_start, bp_end = int(bp_start), int(bp_end)
 
         sv_length = bp_end - bp_start
@@ -459,15 +468,15 @@ class Altref:
         sv_bps = []
         if bp_type in ['DEL', 'INS', 'DEL-FROM-INS-FROM', 'DEL-FROM-INS-TO', 'DEL-TO-INS-FROM', 'DEL-TO-INS-TO']:
             #sv_bps = [bp_start]
-            sv_bps = [config['buf_size']]
+            sv_bps = [buf_size]
         elif bp_type in ['DUP']:
-            #sv_bps = [bp_end-bp_start+config['buf_size']]
-            sv_bps = [config['buf_size']]
+            #sv_bps = [bp_end-bp_start+buf_size]
+            sv_bps = [buf_size]
         elif bp_type in ['INV', 'TRA']:
-            sv_bps = [config['buf_size'], config['buf_size']*3]
+            sv_bps = [buf_size, buf_size * 3]
         else:
             print('Error. Unknown bp_type %s' % (bp_type))
-            sys.exit(0)
+            exit(0)
 
         supp_read = {}
         bam = pysam.AlignmentFile(self.out_bam, 'rb')
@@ -475,8 +484,8 @@ class Altref:
         for sv_bp in sv_bps:
             # for read in bam.fetch('altref', sv_bp-1, sv_bp):
             for read in bam.fetch('altref_%s' % sv_str, sv_bp-1, sv_bp):
-                # if read.is_secondary or read.is_supplementary or read.mapping_quality < config['min_mapq']:
-                if read.is_secondary or read.mapping_quality < config['min_mapq']:
+                # if read.is_secondary or read.is_supplementary or read.mapping_quality < min_mapq:
+                if read.is_secondary or read.mapping_quality < min_mapq:
                     continue
 
                 read_name = get_short_name(read.query_name)
@@ -487,8 +496,6 @@ class Altref:
                 if len(supp_read) > 8:
                     supp_read = {}
                     break
-
-                #print('- processing %s ...' % (read_name))
 
                 ref_start = read.reference_start + 1
                 ref_end = read.reference_end
@@ -503,8 +510,8 @@ class Altref:
                 supp_read[read_name]['strand'] = 1 if read.is_reverse else 0
                 supp_read[read_name]['sv_str'] = sv_str
                 supp_read[read_name]['sv_length'] = sv_length
-                # if sv_bp == bp_start:
-                if sv_bp == config['buf_size']:
+
+                if sv_bp == buf_size:
                     supp_read[read_name]['bp_pos'] = 'bp_start'
                 else:
                     supp_read[read_name]['bp_pos'] = 'bp_end'
@@ -522,10 +529,10 @@ class Altref:
                 cigar_tuples = read.cigartuples
                 supp_read[read_name]['clip'] = {'start': 0, 'end': 0}
                 type, length = cigar_tuples[0]
-                if config['cType'][type] in 'HS':
+                if cType[type] in 'HS':
                     supp_read[read_name]['clip']['start'] = length
                 type, length = cigar_tuples[-1]
-                if config['cType'][type] in 'HS':
+                if cType[type] in 'HS':
                     supp_read[read_name]['clip']['end'] = length
 
                 supp_read[read_name]['AS'] = self.get_AS(read, span)
@@ -538,20 +545,19 @@ class Altref:
                 supp_read[read_name]['AS_avg'] = 1.*supp_read[read_name]['AS']['all']/supp_read[read_name]['length']
                 supp_read[read_name]['indel'] = self.get_indel_info(read, span)
 
-        result = {'sv_str': sv_str, 'supp_read': supp_read}
-
-        return result
+        return {
+            'sv_str': sv_str,
+            'supp_read': supp_read,
+        }
 
     def __call__(self, sv_str):
-        result = self.gen_sv_result(sv_str)
-
-        return result
+        return self.gen_sv_result(sv_str)
 
     # generate results
     def gen_result(self):
-        config = self.config
+        pool_size = self.config['pool_size']
 
-        pool = Pool(config['pool_size'])
+        pool = Pool(pool_size)
         results = pool.map(self, self.sv_str_list)
         pool.close()
         pool.join()
@@ -654,8 +660,6 @@ class Altref:
         self.all_supp_read = all_supp_read
 
     def gen_fasta(self, sv_str, read_info_list):
-        options = self.options
-
         fasta_file = '%s_%s.fasta' % (self.altref, sv_str)
 
         with open(fasta_file, 'w') as f:
@@ -664,7 +668,7 @@ class Altref:
                 span = read_info['span']
 
                 seqs = {}
-                seqs['all'] = get_seq_from_fastq(read_name, options.fastq, '')
+                seqs['all'] = get_seq_from_fastq(read_name, self.fastq, '')
                 if read_info['strand'] == 1:
                     seqs['all'] = rev_comp(seqs['all'])
                 seqs['left'] = seqs['all'][0:span['left']]
@@ -823,41 +827,38 @@ class Altref:
                     sv_str = '-'
 
     def gen_filtered_read_fasta(self):
-        config = self.config
-        options = self.options
+        search_size = self.config['search_size']
+        samtools = self.config['samtools']
 
         # gen bed from bed2
+        bed = '%s.bed' % (self.output_prefix)
+        temp_bam = '%s_temp.bam' % (self.output_prefix)
 
-        bed = '%s.bed' % (options.output_prefix)
-        temp_bam = '%s_temp.bam' % (options.output_prefix)
-
-        cmd = "python bed2tobed.py -in_bed2 %s -out_bed %s -search_size %s" % (options.input_bed2, bed, config['search_size'])
+        cmd = "python bed2tobed.py -in_bed2 %s -out_bed %s -search_size %s" % (self.input_bed2, bed, search_size)
         #print('cmd', cmd)
         run_shell_cmd(cmd)
 
         # gen temp bam
-        cmd = "%s view -@ 48 -L %s %s -b -M > %s && %s index -@ 48 %s" % (config['samtools'], bed, options.orig_bam, temp_bam, config['samtools'], temp_bam)
+        cmd = "%s view -@ 48 -L %s %s -b -M > %s && %s index -@ 48 %s" % (samtools, bed, self.orig_bam, temp_bam, samtools, temp_bam)
         #print('cmd', cmd)
         run_shell_cmd(cmd)
 
         # gen fastq
-        cmd = "python bam2fasta.py -input_bam %s -input_fastq %s -output_fasta %s" % (temp_bam, options.fastq, self.filtered_read_fasta)
+        cmd = "python bam2fasta.py -input_bam %s -input_fastq %s -output_fasta %s" % (temp_bam, self.fastq, self.filtered_read_fasta)
         #print('cmd', cmd)
         run_shell_cmd(cmd)
 
     def run(self):
-        options = self.options
-
-        if options.input_bed2:
+        if self.input_bed2:
             self.load_bed2()
 
-        if options.action in ['all', 'local_validate']:
+        if self.action in ['all', 'local_validate']:
             self.gen_filtered_read_fasta()
             self.gen_altref_file()
 
-            if options.action == 'all':
+            if self.action == 'all':
                 self.gen_ref_file()
-            elif options.action == 'local_validate':
+            elif self.action == 'local_validate':
                 self.gen_localref_file()
 
             self.align()

@@ -1,8 +1,18 @@
 import csv
+import pysam
+import re
 from multiprocessing import Pool
 from argparse import ArgumentParser
 
-from utility import *
+from utility import (
+    get_var,
+    get_short_name,
+    is_same_arm,
+    load_cytobands,
+    load_common_config,
+    cigar_string_to_tuples,
+    get_compact_cigar_string,
+)
 
 """
 class SplitReadSv finds SV candidates of all chromosome based on the cigar string and split reads.

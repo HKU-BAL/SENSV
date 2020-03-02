@@ -1,17 +1,24 @@
 import os
 import shutil
 import csv
+import logging
 from argparse import ArgumentParser
 from os.path import dirname
 
-from utility import *
+from utility import (
+    filter_depth_file,
+    get_var,
+    init_logger,
+    log,
+    run_shell_cmd,
+)
 
-from split_read_caller import *
-from chain_caller import *
-from altref import *
-from depth_info import *
-from term_sv_caller import *
-from bp_tools import *
+from split_read_caller import SplitReadCallerOptions, SplitReadCaller
+from chain_caller import ChainCallerOptions, ChainCaller
+from altref import AltrefOptions, Altref
+from depth_info import DepthInfoOptions, DepthInfo
+from term_sv_caller import TermSvCallerOptions, TermSvCaller
+from bp_tools import BpToolsOptions, BpTools
 
 """
 class SENSV is the integration class for all the steps of SV calling
@@ -19,48 +26,49 @@ class SENSV is the integration class for all the steps of SV calling
 
 
 class SENSV:
-    FASTQ_INDEX_SCRIPT = './index_fastq.sh'
-    MERGE_SV_SCRIPT = './merge_sv.sh'
-
     def __init__(self, options):
         self.load_config()
 
-        config = self.config
+        default_min_sv_size = int(self.config['default_min_sv_size'])
+        output_prefix = options.output_prefix
+        ref = self.config['ref']
+
+        default_min_sv_size = int(self.config['default_min_sv_size'])
+        default_min_sv_size_by_depth = int(self.config['default_min_sv_size_by_depth'])
+        default_max_sv_size = int(self.config['default_max_sv_size'])
 
         self.sample_name = options.sample_name
         self.fastq_file_orig = options.fastq_file
-        self.output_prefix = options.output_prefix
-        #self.sensitive_mode = options.sensitive_mode
+        self.output_prefix = output_prefix
 
-        self.min_sv_size = options.min_sv_size if options.min_sv_size else int(config['default_min_sv_size'])
-        self.min_sv_size_by_depth = int(config['default_min_sv_size_by_depth'])
-        self.max_sv_size = options.max_sv_size if options.max_sv_size else int(config['default_max_sv_size'])
+        self.min_sv_size = options.min_sv_size if options.min_sv_size else default_min_sv_size
+        self.min_sv_size_by_depth = default_min_sv_size_by_depth
+        self.max_sv_size = options.max_sv_size if options.max_sv_size else default_max_sv_size
 
-        self.fastq_file = f'{options.output_prefix}.fastq.gz'
-        self.fastq_prefix = options.output_prefix
-        self.depth_file = '%s.depth' % (options.output_prefix)
-        self.depth_file_filtered = '%s.depth_filtered' % (options.output_prefix)
-        self.minimap2_bam_file = '%s_minimap2.bam' % (options.output_prefix)
-        self.minimap2_filter_bam_file = '%s_minimap2_filter.bam' % (options.output_prefix)
-        self.minimap2_raw_bam_file = '%s_minimap2_raw.bam' % (options.output_prefix)
-        #self.ngmlr_bam_file = '%s_ngmlr.bam' % (options.output_prefix)
-        self.filter_read_file = '%s_filter_read.fastq' % (options.output_prefix)
-        self.filter_read_id_file = '%s_filter_read_id_file' % (options.output_prefix)
-        self.filter_read_bam_file = '%s_filter_read.bam' % (options.output_prefix)
-        self.chain_file = '%s.chain' % (options.output_prefix)
+        self.fastq_file = f'{output_prefix}.fastq.gz'
+        self.fastq_prefix = output_prefix
+        self.depth_file = f'{output_prefix}.depth'
+        self.depth_file_filtered = f'{output_prefix}.depth_filtered'
+        self.minimap2_bam_file = f'{output_prefix}_minimap2.bam'
+        self.minimap2_filter_bam_file = f'{output_prefix}_minimap2_filter.bam'
+        self.minimap2_raw_bam_file = f'{output_prefix}_minimap2_raw.bam'
+        self.filter_read_file = f'{output_prefix}_filter_read.fastq'
+        self.filter_read_id_file = f'{output_prefix}_filter_read_id_file'
+        self.filter_read_bam_file = f'{output_prefix}_filter_read.bam'
+        self.chain_file = f'{output_prefix}.chain'
 
         # working files
-        self.bed2_file = '%s.bed2' % (options.output_prefix)
-        self.split_bed2_file = '%s.split.bed2' % (options.output_prefix)
-        self.dp_bed2_file = '%s.dp.bed2' % (options.output_prefix)
-        self.validate_bed2_file = '%s.validate.bed2' % (options.output_prefix)
-        self.merged_bed2_file = '%s.merge.bed2' % (self.output_prefix)
+        self.bed2_file = f'{output_prefix}.bed2'
+        self.split_bed2_file = f'{output_prefix}.split.bed2'
+        self.dp_bed2_file = f'{output_prefix}.dp.bed2'
+        self.validate_bed2_file = f'{output_prefix}.validate.bed2'
+        self.merged_bed2_file = f'{output_prefix}.merge.bed2'
 
-        self.term_bed2_file = '%s.term.bed2' % (self.output_prefix)
+        self.term_bed2_file = f'{output_prefix}.term.bed2'
 
         # options for calling modified_minimap2
-        self.minimap2_opt1 = '-Y -t 48 -z 200 --MD -a %s %s.fastq.gz' % (config['ref'], self.output_prefix)
-        self.minimap2_opt2 = '-5 %s' % (self.chain_file)
+        self.minimap2_opt1 = f'-Y -t 48 -z 200 --MD -a {ref} {self.fastq_file}'
+        self.minimap2_opt2 = f'-5 {self.chain_file}'
 
         # make working dir
         outputPath = os.path.dirname(self.output_prefix)
@@ -75,33 +83,34 @@ class SENSV:
         self._gender = None
 
         # less than 10k bed2
-        self.lt_10k_bed2 = '%s_lt_10k.bed2' % (self.output_prefix)
-        self.lt_10k_merge_bed2 = '%s_lt_10k.merge.bed2' % (self.output_prefix)
+        self.lt_10k_bed2 = f'{output_prefix}_lt_10k.bed2'
+        self.lt_10k_merge_bed2 = f'{output_prefix}_lt_10k.merge.bed2'
 
         # for chrom info
-        self.fai_file = '%s.fai' % (config['ref'])
+        self.fai_file = f'{ref}.fai'
 
-        self.final_result = '%s_final.result' % (self.output_prefix)
-        self.final_bed2 = '%s_final.bed2' % (self.output_prefix)
+        self.final_result = f'{output_prefix}_final.result'
+        self.final_bed2 = f'{output_prefix}_final.bed2'
 
-        self.disable_depth_analysis = False
-        if self.max_sv_size and self.max_sv_size <= self.min_sv_size_by_depth:
-            self.disable_depth_analysis = True
+        self.disable_depth_analysis = (
+            self.max_sv_size and
+            self.max_sv_size <= self.min_sv_size_by_depth
+        )
 
         if self.disable_depth_analysis:
             print('!!! disabled depth analysis')
 
             # init files
-            files = [self.depth_file_filtered, '%s.dp.bed2' % (self.output_prefix)]
+            files = [self.depth_file_filtered, f'{output_prefix}.dp.bed2']
             for file in files:
-                cmd = 'rm -f %s; touch %s' % (file, file)
+                cmd = f'rm -f {file}; touch {file}'
                 run_shell_cmd(cmd)
 
     def load_config(self):
         self.config = {
             'ref_ver': get_var('common', 'ref_ver'),
             'samtools': get_var('common', 'samtools'),
-            'ref': get_var('common', 'ref_%s' % get_var('common', 'ref_ver')),
+            'ref': get_var('common', f'ref_{get_var("common", "ref_ver")}'),
             'default_min_sv_size': int(get_var('default_value', 'min_sv_size')),
             'default_min_sv_size_by_depth': int(get_var('default_value', 'min_sv_size_by_depth')),
             'default_max_sv_size': int(get_var('default_value', 'max_sv_size')),
@@ -111,9 +120,13 @@ class SENSV:
             'depth_ref': get_var('depth', 'depth_ref'),
         }
 
+        import pprint
+        pprint.pprint(self.config)
+
     @log(message="step 0 (convert fastq.gz to bgzip and index it)")
     def index_fastq(self):
-        run_shell_cmd(f'{self.FASTQ_INDEX_SCRIPT} {self.fastq_file_orig} {self.output_prefix}')
+        FASTQ_INDEX_SCRIPT = './index_fastq.sh'
+        run_shell_cmd(f'{FASTQ_INDEX_SCRIPT} {self.fastq_file_orig} {self.output_prefix}')
 
     @log(message="step 1 (generate bam and chain files)")
     def gen_bam_and_chain_file(self):
@@ -124,11 +137,15 @@ class SENSV:
         """
         my_minimap2 = self.config['my_minimap2']
         samtools = self.config['samtools']
+        ref = self.config['ref']
+
+        self.minimap2_opt1 = f'-Y -t 48 -z 200 --MD -a {ref} {self.fastq_file}'
+        self.minimap2_opt2 = f'-5 {self.chain_file}'
 
         cmd = "%s %s %s | %s sort -@ 48 -o %s - && %s index -@ 48 %s" % \
               (my_minimap2, self.minimap2_opt1, self.minimap2_opt2, samtools,
                self.minimap2_bam_file, samtools, self.minimap2_bam_file)
-        # logging.info(f'cmd: #{cmd}#')
+        logging.info(f'cmd: #{cmd}#')
 
         run_shell_cmd(cmd)
 
@@ -311,6 +328,8 @@ class SENSV:
 
     @log(message="step 8 (cluster and merge cigarRead in bed2_file)")
     def merge_bed2(self):
+        MERGE_SV_SCRIPT = './merge_sv.sh'
+
         merged_bed2_file_tmp = '%s_tmp' % (self.merged_bed2_file)
 
         shutil.copy2(self.validate_bed2_file, merged_bed2_file_tmp)
@@ -330,7 +349,7 @@ class SENSV:
                 outfile.write(infile.read())
 
             if os.path.getsize(self.lt_10k_bed2):
-                cmd = '%s %s %s' % (self.MERGE_SV_SCRIPT, self.lt_10k_bed2, self.lt_10k_merge_bed2)
+                cmd = f'{MERGE_SV_SCRIPT} {self.lt_10k_bed2} {self.lt_10k_merge_bed2}'
 
                 run_shell_cmd(cmd)
 
@@ -364,22 +383,22 @@ class SENSV:
         min_clip_size = 100
         term_seq_file_basepath = ''
 
-        options = TermSvCallerOptions(
-            self.sample_name,
-            self.minimap2_bam_file,
-            self.depth_file_filtered,
-            self.fai_file,
-            output_prefix,
-            term_threshold,
-            min_clip_size,
-            self.fastq_file,
-            term_seq_file_basepath,
-            config['ref'],
-            self.term_bed2_file,
-            buf_size
-        )
-        term_sv_caller = TermSvCaller(options)
-        self.term_sv = term_sv_caller.run()
+        self.term_sv = TermSvCaller(
+            TermSvCallerOptions(
+                self.sample_name,
+                self.minimap2_bam_file,
+                self.depth_file_filtered,
+                self.fai_file,
+                output_prefix,
+                term_threshold,
+                min_clip_size,
+                self.fastq_file,
+                term_seq_file_basepath,
+                config['ref'],
+                self.term_bed2_file,
+                buf_size
+            )
+        ).run()
 
     def filter_depth_file(self):
         filter_depth_file(self.gender, self.depth_file, self.depth_file_filtered)
@@ -425,8 +444,8 @@ class SENSV:
             self.filter_depth_file()
         self.find_bp_by_cigar_str_and_split_read()
         self.filter_by_depth_and_sv_size()
-        self.refine_bp_by_dp()  # self.refine_bp_by_realign()
-        self.validate_bp_by_local_realign()  # self.validate_bp_by_realign()
+        self.refine_bp_by_dp()
+        self.validate_bp_by_local_realign()
         if not self.disable_depth_analysis:
             self.find_bp_by_chain_and_dp()
         self.call_term_sv()
@@ -446,11 +465,9 @@ if __name__ == "__main__":
     parser.add_argument('-disable_dp_filter', '--disable_dp_filter', help='disable DP filter', required=False, type=int)
     parser.add_argument('-disable_gen_altref_bam', '--disable_gen_altref_bam',
                         help='disable gen altref bam', required=False, type=int)
-    #parser.add_argument('-sensitive_mode', help='eneable sensitive mode', nargs='?', default=False, type=bool)
+
     parser.add_argument('-target_sv_type', '--target_sv_type', help='target sv type', required=False)
 
     init_logger()
 
-    options = parser.parse_args()
-    senSV = SENSV(options)
-    senSV.run()
+    SENSV(options=parser.parse_args()).run()

@@ -1,11 +1,10 @@
-import sys, os, re
+import re
+from argparse import ArgumentParser
 
 vcfHeaders = ['CHROM', 'POS', 'ID', 'REF', 'ALT', 'QUAL', 'FILTER', 'INFO']
 outHeaders = ['CHROM', 'POS', 'CHR2', 'SVEND', 'SVTYPE', 'REMARK']
 
 if __name__ == "__main__":
-    from argparse import ArgumentParser
-
     parser = ArgumentParser(description='detect SV')
     parser.add_argument('-v', '--vcf', help='input vcf file', required=True)
     parser.add_argument('-t', '--defaultSvType', help='default SV type', required=False)
@@ -44,7 +43,7 @@ if __name__ == "__main__":
                     result['CHR2'] = arr[1]
                     result['END'] = arr[2]
             else:
-                if fields[4] in ['<DEL>','<INV>','<DUP>','<INS>','<TRA>','<TRA_INV>']:
+                if fields[4] in ['<DEL>', '<INV>', '<DUP>', '<INS>', '<TRA>', '<TRA_INV>']:
                     result['SVTYPE'] = fields[4][1:-1]
                 elif '[' in fields[4] or ']' in fields[4]:
                     arr = re.split(r'\[|\]|:', fields[4])
@@ -77,7 +76,7 @@ if __name__ == "__main__":
                     print('check 1', line)
             """
 
-            #if int(result['SVLEN']) < 1000:
+            # if int(result['SVLEN']) < 1000:
             #    continue
 
             """
@@ -88,4 +87,3 @@ if __name__ == "__main__":
             """
 
             print('\t'.join([result[header] for header in outHeaders]))
-

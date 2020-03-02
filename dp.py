@@ -1,8 +1,15 @@
-from __future__ import print_function
+from sys import exit
 from argparse import ArgumentParser
-import sys
 
-from utility import *
+from utility import (
+    get_var,
+    get_ref,
+    get_seq_from_fastq,
+    is_same_arm,
+    load_cytobands,
+    rev_comp,
+    run_shell_cmd,
+)
 
 """class DP is used for executing DP. It first generates ref. seq. based on
     the target SV candidates, and then executes external DP executables
@@ -30,28 +37,45 @@ class DP:
             self.gap_buf_size = options.gap_buf_size
 
         self.preview_size = None
-        #self.preview_size = 5000
-        #self.preview_size = 1000
-        #self.preview_size = 500
 
         if options.sv_str:
             arr = options.sv_str.split('_')
             sv_type = arr[4]
 
             if sv_type in ['DUP']:
-                self.bp = {'chrom2': arr[0], 'end': int(arr[1]), 'chrom': arr[2], 'start': int(arr[3]), 'sv_type': arr[4]}
+                self.bp = {
+                    'chrom2': arr[0],
+                    'end': int(arr[1]),
+                    'chrom': arr[2],
+                    'start': int(arr[3]),
+                    'sv_type': arr[4]
+                }
             elif sv_type in ['DEL', 'INV', 'TRA', 'CHIMERIC', 'REF']:
-                self.bp = {'chrom': arr[0], 'start': int(arr[1]), 'chrom2': arr[2], 'end': int(arr[3]), 'sv_type': arr[4]}
-            elif sv_type in ['DEL-FROM-INS-FROM','DEL-TO-INS-FROM','DEL-FROM-INS-TO','DEL-TO-INS-TO']:
-                self.bp = {'chrom': arr[0], 'start': int(arr[1]), 'chrom2': arr[2], 'end': int(arr[3]), 'sv_type': arr[4]}
+                self.bp = {
+                    'chrom': arr[0],
+                    'start': int(arr[1]),
+                    'chrom2': arr[2],
+                    'end': int(arr[3]),
+                    'sv_type': arr[4]
+                }
+            elif sv_type in ['DEL-FROM-INS-FROM', 'DEL-TO-INS-FROM', 'DEL-FROM-INS-TO', 'DEL-TO-INS-TO']:
+                self.bp = {
+                    'chrom': arr[0],
+                    'start': int(arr[1]),
+                    'chrom2': arr[2],
+                    'end': int(arr[3]),
+                    'sv_type': arr[4]
+                }
             else:
                 print('Error: unsupported sv_type=%s. Program aborted' % (sv_type))
-                sys.exit(0)
+                exit(0)
 
         if options.query_seq:
             if self.preview_size:
-                #options.query_seq = options.query_seq[:self.preview_size] + options.query_seq[-self.preview_size:]
-                options.query_seq = options.query_seq[500:500+self.preview_size] + options.query_seq[-(self.preview_size+500):-self.preview_size]
+                options.query_seq = (
+                    options.query_seq[500:500+self.preview_size] +
+                    options.query_seq[-(self.preview_size+500):-int(self.preview_size)]
+                )
             self.buf_size = len(options.query_seq) + self.gap_buf_size
 
         load_cytobands()
@@ -66,7 +90,7 @@ class DP:
     def dp_pos_to_genomic_pos(self, dp_pos):
         zone, chrom, genomic_pos = -1, -1, -1
 
-        for idx, entry in enumerate(self.dp_to_genomic_map_table):
+        for _idx, entry in enumerate(self.dp_to_genomic_map_table):
             if entry['start'] <= dp_pos < entry['end']:
                 dir = 1 if entry['genomic_start'] < entry['genomic_end'] else -1
                 genomic_pos = entry['genomic_start'] + (dp_pos - entry['start']) * dir
@@ -77,19 +101,16 @@ class DP:
         return [zone, chrom, genomic_pos]
 
     def get_gap_type(self, gap_start_zone, gap_end_zone):
-        gap_type = ''
-
-        #if self.bp['sv_type'] in ['DEL','DUP']:
-        #if self.bp['sv_type'] in ['DEL','DUP','TRA','DEL-FROM-INS-FROM','DEL-TO-INS-FROM','DEL-FROM-INS-TO','DEL-TO-INS-TO','CHIMERIC']:
         if self.bp['sv_type'] in ['DEL','DUP','TRA','DEL-FROM-INS-FROM','DEL-TO-INS-FROM','DEL-FROM-INS-TO','DEL-TO-INS-TO','CHIMERIC','REF']:
-            gap_type = self.bp['sv_type']
+            return self.bp['sv_type']
+
         elif self.bp['sv_type'] == 'INV':
             if abs(gap_start_zone-gap_end_zone) == 1:
-                gap_type = 'INV'
+                return 'INV'
             else:
-                gap_type = 'DEL'
+                return 'DEL'
 
-        return gap_type
+        return ''
 
     def run_dp(self):
         self.gen_ref_seq()
@@ -97,8 +118,6 @@ class DP:
         cmd = '%s' % (self.dp_exe)
         stdin_input = '%s %s' % (self.options.query_seq, self.ref_seq)
         output = run_shell_cmd(cmd, stdin_input)
-
-        #print('query_seq_len', len(self.options.query_seq), 'ref_seq_len', len(self.ref_seq), 'output', output)
 
         arr = [int(s) for s in output.split()]
 
@@ -109,8 +128,8 @@ class DP:
         score, query_start, query_end, ref_start, ref_end, gap_start, gap_end, query_pos, \
             genomic_ref_start, genomic_ref_end, genomic_gap_start, genomic_gap_end = arr[0:12]
 
-        ref_start_zone, ref_start_chrom, genomic_ref_start = self.dp_pos_to_genomic_pos(ref_start)
-        ref_end_zone, ref_end_chrom, genomic_ref_end = self.dp_pos_to_genomic_pos(ref_end)
+        _ref_start_zone, _ref_start_chrom, genomic_ref_start = self.dp_pos_to_genomic_pos(ref_start)
+        _ref_end_zone, _ref_end_chrom, genomic_ref_end = self.dp_pos_to_genomic_pos(ref_end)
         gap_start_zone, gap_start_chrom, genomic_gap_start = self.dp_pos_to_genomic_pos(gap_start)
         gap_end_zone, gap_end_chrom, genomic_gap_end = self.dp_pos_to_genomic_pos(gap_end)
         gap_type = self.get_gap_type(gap_start_zone, gap_end_zone)
@@ -119,14 +138,27 @@ class DP:
             genomic_gap_start = -1
             genomic_gap_end = -1
 
-        result = {'score': score, 'query_start': query_start, 'query_end': query_end,
-                  'ref_start': ref_start, 'ref_end': ref_end,
-                  'gap_start': gap_start, 'gap_end': gap_end, 'query_pos': query_pos,
-                  'genomic_ref_start': genomic_ref_start, 'genomic_ref_end': genomic_ref_end,
-                  'genomic_gap_start': genomic_gap_start, 'genomic_gap_end': genomic_gap_end,
-                  'query_len': len(self.options.query_seq), 'ref_len': len(self.ref_seq),
-                  'chrom': gap_start_chrom, 'chrom2': gap_end_chrom,
-                  'qname': self.options.query_name, 'gap_type': gap_type, 'sv_type':self.bp['sv_type']}
+        result = {
+            'score': score,
+            'query_start': query_start,
+            'query_end': query_end,
+            'ref_start': ref_start,
+            'ref_end': ref_end,
+            'gap_start': gap_start,
+            'gap_end': gap_end,
+            'query_pos': query_pos,
+            'genomic_ref_start': genomic_ref_start,
+            'genomic_ref_end': genomic_ref_end,
+            'genomic_gap_start': genomic_gap_start,
+            'genomic_gap_end': genomic_gap_end,
+            'query_len': len(self.options.query_seq),
+            'ref_len': len(self.ref_seq),
+            'chrom': gap_start_chrom,
+            'chrom2': gap_end_chrom,
+            'qname': self.options.query_name,
+            'gap_type': gap_type,
+            'sv_type': self.bp['sv_type'],
+        }
 
         if self.bp['sv_type'] == 'DUP':
             self.swap_value(result, 'query_start', 'query_end')
@@ -246,7 +278,14 @@ class DP:
         total_length = 0
         for i in range(len(bp_zone)):
             curr_length = abs(bp_zone[i]['end'] - bp_zone[i]['start'])
-            map_table.append({'zone': i, 'chrom': bp_zone[i]['chrom'], 'start': total_length, 'end': total_length + curr_length, 'genomic_start': bp_zone[i]['start'], 'genomic_end': bp_zone[i]['end']})
+            map_table.append({
+                'zone': i,
+                'chrom': bp_zone[i]['chrom'],
+                'start': total_length,
+                'end': total_length + curr_length,
+                'genomic_start': bp_zone[i]['start'],
+                'genomic_end': bp_zone[i]['end'],
+            })
             total_length += curr_length
 
         self.dp_to_genomic_map_table = map_table
@@ -256,7 +295,10 @@ class DP:
             self.options.query_seq = get_seq_from_fastq(self.options.query_name, self.options.fastq_prefix)
 
             if self.preview_size:
-                self.options.query_seq = self.options.query_seq[500:500+self.preview_size] + self.options.query_seq[-(self.preview_size+500):-self.preview_size]
+                self.options.query_seq = (
+                    self.options.query_seq[500:500+self.preview_size] +
+                    self.options.query_seq[-(self.preview_size+500):-int(self.preview_size)]
+                )
 
             if self.options.query_strand[0] == '-':
                 self.options.query_seq = rev_comp(self.options.query_seq)

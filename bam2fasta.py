@@ -2,7 +2,7 @@ import pysam
 from argparse import ArgumentParser
 from multiprocessing import Pool
 
-from utility import *
+from utility import get_seq_from_fastq
 
 
 class Bam2Fasta:

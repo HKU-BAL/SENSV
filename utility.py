@@ -1,16 +1,8 @@
-import pysam
-import sys
-import os
-import re
-import subprocess
-import configparser
-from glob import glob
-from subprocess import PIPE
+from os import path
 from multiprocessing import Pool
 from collections import defaultdict
 
-ASSEMBLE_SCRIPT = '%s/assemble.sh' % os.path.dirname(os.path.realpath(__file__))
-GET_SEQ_FROM_FASTQ_SCRIPT = '%s/get_seq_by_name.sh' % os.path.dirname(os.path.realpath(__file__))
+# ASSEMBLE_SCRIPT = '%s/assemble.sh' % path.dirname(path.realpath(__file__))
 
 config = None
 
@@ -19,13 +11,14 @@ cytobands = {}
 
 def init_logger():
     import logging
+    from sys import stdout
 
+    formatter = logging.Formatter('[%(asctime)s - %(levelname)s] - %(message)s')
+    handler = logging.StreamHandler(stdout)
+    handler.setLevel(logging.DEBUG)
+    handler.setFormatter(formatter)
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.DEBUG)
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setLevel(logging.DEBUG)
-    formatter = logging.Formatter('[%(asctime)s - %(levelname)s] - %(message)s')
-    handler.setFormatter(formatter)
     root_logger.addHandler(handler)
 
 
@@ -74,13 +67,16 @@ def get_var(group, var):
 
 
 def load_config():
+    from configparser import ConfigParser
     global config
 
-    config = configparser.ConfigParser()
+    config = ConfigParser()
     config.read('config.ini')
 
 
 def get_ref(chr, start_orig, end):
+    import pysam
+
     ref_ver = get_var('common', 'ref_ver')
 
     padding_N = 'N' * (-start_orig)
@@ -97,8 +93,13 @@ def rev_comp(seq):
 
 
 def get_seq_from_fastq(read_name, fastq_prefix, ext='.fastq.gz', return_all=False):
-    seq = ''
+    import subprocess
+    from sys import exit
+    from glob import glob
 
+    GET_SEQ_FROM_FASTQ_SCRIPT = '%s/get_seq_by_name.sh' % path.dirname(path.realpath(__file__))
+
+    seq = ''
     for filename in glob(fastq_prefix + ext):
         cmd = f'{GET_SEQ_FROM_FASTQ_SCRIPT} {read_name} {filename}'
         output = subprocess.check_output(cmd, shell=True, universal_newlines=True).splitlines()
@@ -114,13 +115,14 @@ def get_seq_from_fastq(read_name, fastq_prefix, ext='.fastq.gz', return_all=Fals
 
     if not seq:
         print("ERROR: get_seq_from_fastq: read %s not found. fastq_prefix=%s" % (read_name, fastq_prefix))
-        sys.exit(0)
+        exit(0)
 
     return seq
 
 
 def cigar_string_to_tuples(cigar_string):
-    cigar_tuples = re.findall(r'(\d+)(\w)', cigar_string)
+    from re import findall
+    cigar_tuples = findall(r'(\d+)(\w)', cigar_string)
 
     return [(cigar_tuple[1], int(cigar_tuple[0])) for cigar_tuple in cigar_tuples]
 
@@ -157,7 +159,9 @@ def get_compact_cigar_string(cigar_string, start_clip_count, end_clip_count):
 
 
 def run_shell_cmd(cmd, stdin_input=None):
-    p = subprocess.Popen(cmd, shell=True, stdout=PIPE, stderr=PIPE, stdin=PIPE, universal_newlines=True)
+    from subprocess import Popen, PIPE
+
+    p = Popen(cmd, shell=True, stdout=PIPE, stderr=PIPE, stdin=PIPE, universal_newlines=True)
     out, _err = p.communicate(stdin_input) if stdin_input else p.communicate()
 
     return out
@@ -244,6 +248,8 @@ def align(ref_info_list, query_info_list, file_prefix):
 
 
 def gen_altref_align_seq(sv_str, working_path, fastq_prefix, query_read_name_list, config):
+    from os import makedirs
+
     arr = sv_str.split('_')
     bp_chrom, bp_start, bp_chrom2, bp_end, sv_type = arr[0], int(arr[1]), arr[2], int(arr[3]), arr[4]
 
@@ -254,7 +260,7 @@ def gen_altref_align_seq(sv_str, working_path, fastq_prefix, query_read_name_lis
     # file_prefix
     working_path = '%s/%s_%d_%s_%d_%s/validate' % (working_path, bp_chrom, bp_start, bp_chrom2, bp_end, sv_type)
     try:
-        os.makedirs(working_path)
+        makedirs(working_path)
     except:
         pass
     file_prefix = '%s/%s_%d_%s_%d_%s' % (working_path, bp_chrom, bp_start, bp_chrom2, bp_end, sv_type)
@@ -541,9 +547,16 @@ def filter_depth_file(gender, orig_depth_file, new_depth_file):
 
 def get_sorted_sv_str_list(sv_str_dict):
     def toIntStr(text): return text if text.isdigit() else '23' if text == 'X' else '24'
-    return sorted(sv_str_dict, key=lambda k: k.split('_')[4].rjust(17) +
-                  toIntStr(k.split('_')[0]).rjust(2) + k.split('_')[1].rjust(9) +
-                  toIntStr(k.split('_')[2]).rjust(2) + k.split('_')[3].rjust(9))
+    return sorted(
+        sv_str_dict,
+        key=lambda k: (
+            k.split('_')[4].rjust(17) +
+            toIntStr(k.split('_')[0]).rjust(2) +
+            k.split('_')[1].rjust(9) +
+            toIntStr(k.split('_')[2]).rjust(2) +
+            k.split('_')[3].rjust(9)
+        )
+    )
 
 
 def get_short_name(read_name):

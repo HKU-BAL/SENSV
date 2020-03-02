@@ -1,7 +1,13 @@
 import os
-from utility import *
 import csv
+import pysam
 
+from utility import (
+    get_var,
+    get_short_name,
+    get_clip_seq,
+    run_shell_cmd,
+)
 
 class TermSvCallerOptions:
     def __init__(self, name, in_bam, depth_file, fai_file, output_prefix, term_threshold, min_clip_size, fastq, term_seq_file_basepath, ref, out_bed2_file, buf_size):
@@ -45,7 +51,7 @@ class TermSvCaller:
                 arr = line.strip().split()
                 arr[0] = 'X' if arr[0] == '23' else 'Y' if arr[0] == '24' else arr[0]
 
-                chrom, start, end, score, region_type = arr[0], int(arr[1]), int(arr[2]), int(float(arr[3])), arr[4]
+                chrom, start, end, _score, region_type = arr[0], int(arr[1]), int(arr[2]), int(float(arr[3])), arr[4]
 
                 if region_type not in ['DEL']:
                     continue
@@ -115,12 +121,12 @@ class TermSvCaller:
             pos = read.reference_end if term_side == 'end' else read.reference_start
 
             if term_start <= pos <= term_end:
-                tuples = read.cigartuples
+                _tuples = read.cigartuples
 
                 clip = get_clip_seq(read, options.fastq[:-9])
                 if clip[term_side]['length'] > options.min_clip_size:
-                    sa_str = read.get_tag("SA").strip(';') if read.has_tag('SA') else ''
-                    strand = '+' if not read.is_reverse else '-'
+                    # sa_str = read.get_tag("SA").strip(';') if read.has_tag('SA') else ''
+                    # strand = '+' if not read.is_reverse else '-'
                     clip_seq = clip[term_side]['seq']
                     #breakpoint = read.reference_end if term_side == 'end' else read.reference_start
                     read_name = read.query_name
@@ -137,8 +143,6 @@ class TermSvCaller:
                     print('%s' % (clip_seq), file=fasta)
 
     def align(self, region):
-        options = self.options
-
         samtools = get_var('common', 'samtools')
         # term_seq_file = '%s/%s_%s.fa' % (options.term_seq_file_basepath, region['chrom'], region['side'])
 
@@ -183,7 +187,7 @@ class TermSvCaller:
         return support_info
 
     def check_result(self, region):
-        term_chrom, term_pos, term_side = region['chrom'], region['pos'], region['side']
+        term_chrom, _term_pos, term_side = region['chrom'], region['pos'], region['side']
 
         bam_file = self.get_region_file_name(region, 'bam')
 
