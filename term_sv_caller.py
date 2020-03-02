@@ -56,7 +56,12 @@ class TermSvCaller:
                 if region_type not in ['DEL']:
                     continue
 
-                self.depth_region.append({'chrom': chrom, 'start': start, 'end': end, 'region_type': region_type})
+                self.depth_region.append({
+                    'chrom': chrom,
+                    'start': start,
+                    'end': end,
+                    'region_type': region_type
+                })
 
         #print('loaded depth_region', self.depth_region)
 
@@ -70,7 +75,6 @@ class TermSvCaller:
                     continue
 
                 arr = line.strip().split()
-
                 chrom, size = arr[0], int(arr[1])
 
                 self.chrom_info[chrom] = size
@@ -93,11 +97,10 @@ class TermSvCaller:
                 self.term_region.append({'chrom': chrom, 'pos': start, 'side': 'end'})
 
     def get_region_file_name(self, region, type):
-        options = self.options
+        output_prefix = self.options.output_prefix
 
         if type != 'ref':
-            prefix = '%s_%s_%s_%s' % (options.output_prefix, region['chrom'], region['pos'], region['side'])
-            return '%s.%s' % (prefix, type)
+            return f"{output_prefix}_{region['chrom']}_{region['pos']}_{region['side']}.{type}"
         else:
             return 'assembled_ref/HG001_assembled.fa'
 
@@ -143,48 +146,66 @@ class TermSvCaller:
                     print('%s' % (clip_seq), file=fasta)
 
     def align(self, region):
+        minimap2 = get_var('common', 'minimap2')
         samtools = get_var('common', 'samtools')
-        # term_seq_file = '%s/%s_%s.fa' % (options.term_seq_file_basepath, region['chrom'], region['side'])
 
         fasta = self.get_region_file_name(region, 'fasta')
         ref = self.get_region_file_name(region, 'ref')
         out_bam = self.get_region_file_name(region, 'bam')
 
-        cmd = "%s -Y -t 48 -a %s %s | %s sort -@ 24 -o %s - && %s index -@ 24 %s &> %s.log" % \
-            (get_var('common', 'minimap2'), ref, fasta, samtools, out_bam, samtools, out_bam, out_bam)
+        # cmd = "%s -Y -t 48 -a %s %s | %s sort -@ 24 -o %s - && %s index -@ 24 %s &> %s.log" % \
+        #     (minimap2, ref, fasta, samtools, out_bam, samtools, out_bam, out_bam)
+        cmd = (
+            f'{minimap2} -Y -t 48 -a {ref} {fasta} | '
+            f'{samtools} sort -@ 24 -o {out_bam} - && '
+            f'{samtools} index -@ 24 {out_bam} &> {out_bam}.log'
+        )
 
         run_shell_cmd(cmd)
 
     def get_read_support_info(self, read):
-        options = self.options
+        term_threshold = self.options.term_threshold
 
-        support_info = {'name': read.query_name, 'is_support': False, 'is_assembled_seq': False, 'seq_chrom': None, 'seq_pos': 0}
-
-        # read_name = read.query_name
         ref_name = read.reference_name
 
         arr = ref_name.split('_')
         if arr[0] == 'assembled':
             chrom = arr[1]
             pos = int(arr[2])
-            support_info['is_support'] = True
-            support_info['is_assembled_seq'] = True
-            support_info['seq_chrom'] = chrom
-            support_info['seq_pos'] = pos
-            support_info['AS'] = int(read.get_tag('AS'))
+            AS = int(read.get_tag('AS'))
+
+            return {
+                'name': read.query_name,
+                'is_support': True,
+                'is_assembled_seq': True,
+                'seq_chrom': chrom,
+                'seq_pos': pos,
+                'AS': AS,
+            }
         else:
             chrom = ref_name
-            chrom_size = self.chrom_info[chrom]
-
             pos = read.reference_start
-            if pos < options.term_threshold or pos > chrom_size - options.term_threshold:
-                support_info['is_support'] = True
-                support_info['is_assembled_seq'] = False
-                support_info['seq_chrom'] = chrom
-                support_info['seq_pos'] = pos
-                support_info['AS'] = int(read.get_tag('AS'))
 
-        return support_info
+            chrom_size = self.chrom_info[chrom]
+            if pos < term_threshold or pos > chrom_size - term_threshold:
+                AS = int(read.get_tag('AS'))
+
+                return {
+                    'name': read.query_name,
+                    'is_support': True,
+                    'is_assembled_seq': False,
+                    'seq_chrom': chrom,
+                    'seq_pos': pos,
+                    'AS': AS,
+                }
+
+        return {
+            'name': read.query_name,
+            'is_support': False,
+            'is_assembled_seq': False,
+            'seq_chrom': None,
+            'seq_pos': 0
+        }
 
     def check_result(self, region):
         term_chrom, _term_pos, term_side = region['chrom'], region['pos'], region['side']
@@ -278,19 +299,20 @@ if __name__ == "__main__":
     parser.add_argument('-buf_size', '--buf_size', help='buf size', required=True, type=int)
 
     options = parser.parse_args()
-    term_sv_caller_options = TermSvCallerOptions(
-        options.name,
-        options.bam,
-        options.depth_file,
-        options.fai_file,
-        options.output_prefix,
-        options.term_threshold,
-        options.min_clip_size,
-        options.fastq,
-        options.term_seq_file_basepath,
-        options.ref,
-        'term_sv_caller.bed2',
-        options.buf_size,
-    )
-    term_sv_caller = TermSvCaller(term_sv_caller_options)
-    term_sv_caller.run()
+
+    TermSvCaller(
+        TermSvCallerOptions(
+            options.name,
+            options.bam,
+            options.depth_file,
+            options.fai_file,
+            options.output_prefix,
+            options.term_threshold,
+            options.min_clip_size,
+            options.fastq,
+            options.term_seq_file_basepath,
+            options.ref,
+            'term_sv_caller.bed2',
+            options.buf_size,
+        )
+    ).run()

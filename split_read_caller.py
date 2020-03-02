@@ -464,8 +464,19 @@ class SplitReadCaller:
                     read_strand = bp2['strand']
                     bp_query_pos = bp2['query_end']
 
-                info.append({'bp_chrom': chrom, 'bp_start': bp_start, 'bp_end': bp_end, 'read_name': read_name,
-                             'supp_type': 'splitRead', 'sv_type': sv_type, 'bp_chrom2': bp_chrom2, 'read_strand': read_strand, 'bp_query_pos': bp_query_pos, 'read_seq': read.query_sequence, 'overlap': max(0, curr['clipped']+prev['clipped']-len(read.query_sequence))})
+                info.append({
+                    'bp_chrom': chrom,
+                    'bp_start': bp_start,
+                    'bp_end': bp_end,
+                    'read_name': read_name,
+                    'supp_type': 'splitRead',
+                    'sv_type': sv_type,
+                    'bp_chrom2': bp_chrom2,
+                    'read_strand': read_strand,
+                    'bp_query_pos': bp_query_pos,
+                    'read_seq': read.query_sequence,
+                    'overlap': max(0, curr['clipped'] + prev['clipped'] - len(read.query_sequence))
+                })
 
             prev = curr
 
@@ -509,8 +520,7 @@ class SplitReadCaller:
         return split_info
 
     def get_query_start_pos(self, orig_tuples, strand):
-        # equiv. to count hardclip/softclip at the beginning
-
+        # equiv. to count hardclip / softclip at the beginning
         if strand == '-':
             tuples = orig_tuples[::-1]
         else:
@@ -518,7 +528,6 @@ class SplitReadCaller:
 
         pos = 0
         for (type, length) in tuples:
-            # if cType[type] in 'HS':
             if type in 'HS':
                 pos += int(length)
             else:
@@ -528,7 +537,6 @@ class SplitReadCaller:
 
     def get_query_end_pos(self, orig_tuples, strand, total_read_length):
         # equiv. to count querystring up to ending softclip/hardclip
-
         if strand == '-':
             tuples = orig_tuples[::-1]
         else:
@@ -562,7 +570,7 @@ class SplitReadCaller:
         query_start = self.get_query_start_pos(tuples, strand)
         query_end = self.get_query_end_pos(tuples, strand, read_length)
 
-        output = {
+        return {
             'read_length': read_length,
             'ref_length': ref_length,
             'ref_start': ref_start,
@@ -570,8 +578,6 @@ class SplitReadCaller:
             'query_start': query_start,
             'query_end': query_end,
         }
-
-        return output
 
     def get_bp_info(self, read, chrom):
         return self.get_cigar_info(read, chrom) + self.get_split_info(read, chrom)
@@ -635,8 +641,8 @@ class SplitReadCaller:
             for line in output_lt_10k:
                 writer_lt_10k.writerow(line.split('|'))
 
-        print('gen_bed2: >10k, count=%d' % len(output))
-        print('gen_bed2: <=10k, count=%d' % len(output_lt_10k))
+        print(f'gen_bed2: >10k, count={len(output)}')
+        print(f'gen_bed2: <=10k, count={len(output_lt_10k)}')
 
     def load_depth_region(self):
         options = self.options
@@ -661,7 +667,15 @@ class SplitReadCaller:
                 start1 = 1 if start1 <= 0 else start1
                 end1 = 1 if end1 <= 0 else end1
 
-                depth_region[region_type].append({'chrom':chrom,'start':start,'end':end,'start1':start1,'start2':start2,'end1':end1,'end2':end2})
+                depth_region[region_type].append({
+                    'chrom': chrom,
+                    'start': start,
+                    'end': end,
+                    'start1': start1,
+                    'start2': start2,
+                    'end1': end1,
+                    'end2': end2
+                })
 
         self.depth_region = depth_region
 
@@ -701,7 +715,6 @@ class SplitReadCaller:
                     continue
 
                 arr = line.strip().split()
-
                 chrom, size = arr[0], int(arr[1])
 
                 self.chrom_info[chrom] = size
@@ -907,9 +920,6 @@ if __name__ == "__main__":
     parser.add_argument('-lt_10k_bed2', '--lt_10k_bed2', help='less-than-10k bed2', required=True)
     parser.add_argument('-fai_file', '--fai_file', help='ref. index file', required=True)
 
-    options = parser.parse_args()
-
-    split_read_caller_options = get_split_read_caller_options(options)
-
-    split_read_caller = SplitReadCaller(split_read_caller_options)
-    split_read_caller.run()
+    SplitReadCaller(
+        get_split_read_caller_options(parser.parse_args())
+    ).run()

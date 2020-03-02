@@ -55,8 +55,8 @@ class Bam2Fasta:
             for read_name in self.read_info:
                 read_seq = self.read_info[read_name]
 
-                print('@%s' % (read_name), file=fasta)
-                print('%s' % (read_seq), file=fasta)
+                print(f'@{read_name}', file=fasta)
+                print(read_seq, file=fasta)
 
     def run(self):
         self.read_bam()
@@ -70,6 +70,4 @@ if __name__ == "__main__":
     parser.add_argument('-input_fastq', '--input_fastq', help='in fastq', required=True)
     parser.add_argument('-output_fasta', '--output_fasta', help='out fasta', required=True)
 
-    options = parser.parse_args()
-    bam2fasta = Bam2Fasta(options)
-    bam2fasta.run()
+    Bam2Fasta(parser.parse_args()).run()

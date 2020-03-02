@@ -69,7 +69,7 @@ class BpTools:
                 score_ratio = 0
                 if len(arr) == 10:
                     score_ratio = arr[8]
-                sv_str_dict['%s_%s_%s_%s_%s' % (chrom, start, chrom2, end, type)] = {
+                sv_str_dict[f'{chrom}_{start}_{chrom2}_{end}_{type}'] = {
                     'value': arr[5:],
                     'score_ratio': score_ratio
                 }
@@ -100,13 +100,19 @@ class BpTools:
 
             if merged_sv_str:
                 arr = merged_sv_str.split('_')
-                merged_sv = {'chrom': arr[0], 'start': int(arr[1]), 'chrom2': arr[2], 'end': int(arr[3]), 'type': arr[4]}
+                merged_sv = {
+                    'chrom': arr[0],
+                    'start': int(arr[1]),
+                    'chrom2': arr[2],
+                    'end': int(arr[3]),
+                    'type': arr[4]
+                }
                 if (
                     curr_sv['type'] == merged_sv['type'] and
                     curr_sv['chrom'] == merged_sv['chrom'] and
                     curr_sv['chrom2'] == merged_sv['chrom2'] and
-                    abs(curr_sv['start']-merged_sv['start']) < merge_dist and
-                    abs(curr_sv['end']-merged_sv['end']) < merge_dist
+                    abs(curr_sv['start'] - merged_sv['start']) < merge_dist and
+                    abs(curr_sv['end'] - merged_sv['end']) < merge_dist
                 ):
                     if curr_sv['score_ratio'] > merged_sv_dict[merged_sv_str]['score_ratio']:
                         del merged_sv_dict[merged_sv_str]
@@ -150,14 +156,14 @@ class BpTools:
                     chrom, start, chrom2, end, sv_type, _supp_type, query_name, query_strand, query_pos = \
                         arr[0], int(arr[1]), arr[2], int(arr[3]), arr[4], arr[5], arr[6], arr[7], arr[8]
 
-                    sv_str = '%s_%d_%s_%d_%s' % (chrom, start, chrom2, end, sv_type)
-                    self.param_str_list.append('%s|%s|%s|%s' % (sv_str, query_name, query_strand, query_pos))
+                    sv_str = f'{chrom}_{start}_{chrom2}_{end}_{sv_type}'
+                    self.param_str_list.append(f'{sv_str}|{query_name}|{query_strand}|{query_pos}')
                 elif len(arr) == 7:
                     chrom, start, chrom2, end, sv_type, query_name, query_strand = \
                         arr[0], int(arr[1]), arr[2], int(arr[3]), arr[4], arr[5], arr[6]
 
-                    sv_str = '%s_%d_%s_%d_%s' % (chrom, start, chrom2, end, sv_type)
-                    self.param_str_list.append('%s|%s|%s' % (sv_str, query_name, query_strand))
+                    sv_str = f'{chrom}_{start}_{chrom2}_{end}_{sv_type}'
+                    self.param_str_list.append(f'{sv_str}|{query_name}|{query_strand}')
 
     def refine_bp(self):
         options = self.options
@@ -185,7 +191,7 @@ class BpTools:
         with open(options.output_bed2, 'w') as f:
             for result in results:
                 # adjustment of query_pos
-                result['query_pos'] = result['bp_query_pos']+(result['query_pos']-result['local_bp_query_pos'])
+                result['query_pos'] = result['bp_query_pos'] + (result['query_pos'] - result['local_bp_query_pos'])
 
                 #print('result', result)
                 """
@@ -211,19 +217,24 @@ class BpTools:
 
                 # if result['genomic_gap_start'] > 0 and result['genomic_gap_end'] > 0:
                 row = [str(result[x]) for x in header]
-                is_filtered = 0
+                is_filtered = False
                 # if float(result['score_read_length_ratio']) < self.min_score_read_length_ratio:
                 if False:
-                    is_filtered = 1
+                    is_filtered = True
                 elif result['sv_type'] == 'DEL':
-                    if (options.min_sv_size and result['genomic_gap_end'] - result['genomic_gap_start'] < options.min_sv_size) or \
-                            (options.max_sv_size and result['genomic_gap_end'] - result['genomic_gap_start'] > options.max_sv_size):
-                        is_filtered = 1
+                    if (
+                        options.min_sv_size and
+                        result['genomic_gap_end'] - result['genomic_gap_start'] < options.min_sv_size
+                    ) or (
+                        options.max_sv_size and
+                        result['genomic_gap_end'] - result['genomic_gap_start'] > options.max_sv_size
+                    ):
+                        is_filtered = True
 
                 if not is_filtered:
                     print('\t'.join(row), file=f)
                 else:
-                    print('#'+'\t'.join(row), file=f)
+                    print('#' + '\t'.join(row), file=f)
 
 
 if __name__ == "__main__":

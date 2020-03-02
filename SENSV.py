@@ -66,10 +66,6 @@ class SENSV:
 
         self.term_bed2_file = f'{output_prefix}.term.bed2'
 
-        # options for calling modified_minimap2
-        self.minimap2_opt1 = f'-Y -t 48 -z 200 --MD -a {ref} {self.fastq_file}'
-        self.minimap2_opt2 = f'-5 {self.chain_file}'
-
         # make working dir
         outputPath = os.path.dirname(self.output_prefix)
         try:
@@ -139,12 +135,14 @@ class SENSV:
         samtools = self.config['samtools']
         ref = self.config['ref']
 
-        self.minimap2_opt1 = f'-Y -t 48 -z 200 --MD -a {ref} {self.fastq_file}'
-        self.minimap2_opt2 = f'-5 {self.chain_file}'
+        minimap2_opt1 = f'-Y -t 48 -z 200 --MD -a {ref} {self.fastq_file}'
+        minimap2_opt2 = f'-5 {self.chain_file}'
 
-        cmd = "%s %s %s | %s sort -@ 48 -o %s - && %s index -@ 48 %s" % \
-              (my_minimap2, self.minimap2_opt1, self.minimap2_opt2, samtools,
-               self.minimap2_bam_file, samtools, self.minimap2_bam_file)
+        cmd = (
+            f'{my_minimap2} {minimap2_opt1} {minimap2_opt2} | '
+            f'{samtools} sort -@ 48 -o {self.minimap2_bam_file} - && '
+            f'{samtools} index -@ 48 {self.minimap2_bam_file}'
+        )
         logging.info(f'cmd: #{cmd}#')
 
         run_shell_cmd(cmd)
@@ -157,7 +155,7 @@ class SENSV:
         def reads_count_for_chromosome(chromosome):
             samtools = self.config['samtools']
             bam = self.minimap2_bam_file
-            return int(run_shell_cmd(f'{samtools} view -F 260 {bam} {chromosome} | wc -l'))
+            return int(run_shell_cmd(f'{samtools} view -c -F 260 {bam} {chromosome}'))
 
         X_count = reads_count_for_chromosome("X")
         Y_count = reads_count_for_chromosome("Y")
@@ -167,29 +165,24 @@ class SENSV:
 
     @log(message="step 2 (generate depth file)")
     def gen_depth_file(self):
-        """
-        generate depth file
-        - input: bam
-        - output: depth file
-        """
         basedir = os.path.dirname(os.path.realpath('__file__'))
+        current_dir = os.getcwd() + "/"
+        is_absolute_path = self.output_prefix[0] == '/'
+
         depth_path = basedir + "/depth"
+        input_bam_file = f"{'' if is_absolute_path else current_dir}{self.minimap2_bam_file}"
+        input_ref_file = self.config['depth_ref']
+        output_path = f"{'' if is_absolute_path else current_dir}{self.output_prefix}"
 
-        current_dir = os.getcwd()
-
-        ref_file = self.config['depth_ref']
-
-        if self.output_prefix[0] == "/":
-            cmd = 'cd %s && python depth_normalize_gender_thread.py %s %s %s %s' % (
-                depth_path, self.minimap2_bam_file, ref_file, self.gender, self.output_prefix)
-        else:
-            cmd = 'cd %s && python depth_normalize_gender_thread.py %s/%s %s %s %s/%s' % (
-                depth_path, current_dir, self.minimap2_bam_file, ref_file, self.gender, current_dir, self.output_prefix)
-        # logging.info(f"cmd: #{cmd}#")
+        cmd = (
+            f'cd {depth_path} && '
+            f'python depth_normalize_gender_thread.py {input_bam_file} {input_ref_file} {self.gender} {output_path}'
+        )
+        logging.info(f"cmd: #{cmd}#")
 
         run_shell_cmd(cmd)
 
-    @log(message="step 3 (find bp from cigarstring and split reads)")
+    @log(message="step 3 (find breakpoint from CIGAR and split reads)")
     def find_bp_by_cigar_str_and_split_read(self):
         term_threshold = 300000
         chromosome_list = self.config['chrom_list']
@@ -211,7 +204,6 @@ class SENSV:
 
     @log(message="step 4 (filter by depth and sv size)")
     def filter_by_depth_and_sv_size(self):
-        filtered_sv = []
         min_sv_size_for_depth = int(get_var('depth', 'min_sv_size_for_depth'))
         max_deviate_size = int(get_var('depth', 'max_deviate_size'))
 
@@ -228,10 +220,11 @@ class SENSV:
                     'chrom': chrom,
                     'start1': start - max_deviate_size,
                     'start2': start + max_deviate_size,
-                    'end1': end-max_deviate_size,
-                    'end2': end+max_deviate_size
+                    'end1': end - max_deviate_size,
+                    'end2': end + max_deviate_size
                 })
 
+        filtered_sv = []
         with open(self.bed2_file) as f:
             for line in f:
                 if not line.strip():
@@ -241,9 +234,9 @@ class SENSV:
                 chrom, start, chrom2, end, sv_type, supp_type, read_name, read_strand, query_pos = \
                     arr[0], int(arr[1]), arr[2], int(arr[3]), arr[4], arr[5], arr[6], arr[7], int(arr[8])
 
-                svSize = end-start
-                if supp_type != "adhoc" and svSize >= min_sv_size_for_depth:
-                    match = False
+                sv_size = end - start
+                match = supp_type == "adhoc" or sv_size < min_sv_size_for_depth
+                if not match:
                     for depth in depth_region:
                         if (
                             chrom == depth['chrom'] and
@@ -253,19 +246,7 @@ class SENSV:
                             match = True
                             break
 
-                    if match:
-                        filtered_sv.append({
-                            'chrom': chrom,
-                            'start': start,
-                            'chrom2': chrom2,
-                            'end': end,
-                            'sv_type': sv_type,
-                            'supp_type': supp_type,
-                            'read_name': read_name,
-                            'read_strand': read_strand,
-                            'query_pos': query_pos,
-                        })
-                else:
+                if match:
                     filtered_sv.append({
                         'chrom': chrom,
                         'start': start,
@@ -281,37 +262,58 @@ class SENSV:
         os.rename(self.bed2_file, '%s_raw' % (self.bed2_file))
 
         with open(self.bed2_file, 'w') as f:
-            writer = csv.DictWriter(f, fieldnames=['chrom', 'start', 'chrom2', 'end', 'sv_type',
-                                                   'supp_type', 'read_name', 'read_strand', 'query_pos'], delimiter='\t')
+            writer = csv.DictWriter(
+                f,
+                fieldnames=['chrom', 'start', 'chrom2', 'end', 'sv_type', 'supp_type', 'read_name', 'read_strand', 'query_pos'],
+                delimiter='\t'
+            )
             for sv in filtered_sv:
                 writer.writerow(sv)
 
         print('len(filtered_sv)', len(filtered_sv))
 
-    @log(message="step 5 (refine bp by dp)")
+    @log(message="step 5 (refine breakpoint by dp)")
     def refine_bp_by_dp(self):
-        tmp_bed2 = '%s_tmp' % (self.split_bed2_file)
+        tmp_bed2 = f'{self.split_bed2_file}_tmp'
 
-        options = BpToolsOptions(self.bed2_file, tmp_bed2, self.fastq_prefix, self.min_sv_size, self.max_sv_size)
-        bp_tools = BpTools(options)
-        bp_tools.refine_bp()
+        BpTools(
+            BpToolsOptions(
+                self.bed2_file,
+                tmp_bed2,
+                self.fastq_prefix,
+                self.min_sv_size,
+                self.max_sv_size
+            )
+        ).refine_bp()
 
-        options = BpToolsOptions(tmp_bed2, self.split_bed2_file, self.fastq_prefix, self.min_sv_size, self.max_sv_size)
-        bp_tools = BpTools(options)
-        bp_tools.merge_bp()
+        BpTools(
+            BpToolsOptions(
+                tmp_bed2,
+                self.split_bed2_file,
+                self.fastq_prefix,
+                self.min_sv_size,
+                self.max_sv_size
+            )
+        ).merge_bp()
 
-    @log(message="step 6 (validate bp by local realign)")
+    @log(message="step 6 (validate breakpoint by local realign)")
     def validate_bp_by_local_realign(self):
         action = 'local_validate'
-        options = AltrefOptions(self.sample_name, self.split_bed2_file, self.fastq_file,
-                                self.minimap2_bam_file, self.split_bed2_file, action)
-        altref = Altref(options)
-        altref.run()
+        Altref(
+            AltrefOptions(
+                self.sample_name,
+                self.split_bed2_file,
+                self.fastq_file,
+                self.minimap2_bam_file,
+                self.split_bed2_file,
+                action
+            )
+        ).run()
 
-        cmd = 'mv %s_filtered.bed2 %s' % (self.split_bed2_file, self.validate_bed2_file)
+        cmd = f'mv {self.split_bed2_file}_filtered.bed2 {self.validate_bed2_file}'
         run_shell_cmd(cmd)
 
-    @log(message="step 7 (find bp from chain and dp)")
+    @log(message="step 7 (find breakpoint from chain and dp)")
     def find_bp_by_chain_and_dp(self):
         ChainCaller(
             ChainCallerOptions(
@@ -350,38 +352,43 @@ class SENSV:
 
             if os.path.getsize(self.lt_10k_bed2):
                 cmd = f'{MERGE_SV_SCRIPT} {self.lt_10k_bed2} {self.lt_10k_merge_bed2}'
-
                 run_shell_cmd(cmd)
 
                 with open(self.lt_10k_merge_bed2) as infile:
                     outfile.write(infile.read())
 
-            # if os.path.isfile(self.term_bed2_file) and os.path.getsize(self.term_bed2_file):
-            #    with open(self.term_bed2_file) as infile:
-            #        outfile.write(infile.read())
-
-        options = BpToolsOptions(merged_bed2_file_tmp, self.merged_bed2_file,
-                                 self.fastq_prefix, self.min_sv_size, self.max_sv_size)
-        bp_tools = BpTools(options)
-        bp_tools.merge_bp()
+        BpTools(
+            BpToolsOptions(
+                merged_bed2_file_tmp,
+                self.merged_bed2_file,
+                self.fastq_prefix,
+                self.min_sv_size,
+                self.max_sv_size
+            )
+        ).merge_bp()
 
     @log(message="step 9 (validate and generate stats by altref)")
     def validate_bp_by_altref(self):
         action = 'all' if not self.disable_gen_altref_bam else None
-        options = AltrefOptions(self.sample_name, '%s_altref' %
-                                (self.output_prefix), self.fastq_file,
-                                self.minimap2_bam_file, self.merged_bed2_file, action)
-        altref = Altref(options)
-        altref.run()
+        Altref(
+            AltrefOptions(
+                self.sample_name,
+                f'{self.output_prefix}_altref',
+                self.fastq_file,
+                self.minimap2_bam_file,
+                self.merged_bed2_file,
+                action
+            )
+        ).run()
 
-    @log(message="step ? (detect term SV)")
+    @log(message="step ? (detect terminal SV)")
     def call_term_sv(self):
-        config = self.config
-        output_prefix = '%s/term_sv_caller_temp/%s' % (os.path.dirname(self.output_prefix), self.sample_name)
+        output_prefix = f'{os.path.dirname(self.output_prefix)}/term_sv_caller_temp/{self.sample_name}'
         term_threshold = 300000
         buf_size = 200000
         min_clip_size = 100
         term_seq_file_basepath = ''
+        ref = self.config['ref']
 
         self.term_sv = TermSvCaller(
             TermSvCallerOptions(
@@ -394,7 +401,7 @@ class SENSV:
                 min_clip_size,
                 self.fastq_file,
                 term_seq_file_basepath,
-                config['ref'],
+                ref,
                 self.term_bed2_file,
                 buf_size
             )
@@ -414,27 +421,32 @@ class SENSV:
             with open(self.term_bed2_file, 'r') as infile:
                 for line in infile:
                     arr = line.strip().split()
-                    chrom, start, chrom2, end, read_name, read_length = arr[0], int(
-                        arr[1]), arr[2], int(arr[3]), arr[5], int(arr[6])
+                    chrom, start, chrom2, end, read_name, read_length = \
+                        arr[0], int(arr[1]), arr[2], int(arr[3]), arr[5], int(arr[6])
                     """
                     if start == 0:
                         start = 'pter'
                     if end == 0:
                         end = 'qter'
                     """
-                    sv_str = '%s_%s_%s_%s_TERM-DEL' % (chrom, str(start), chrom2, str(end))
+                    sv_str = f'{chrom}_{start}_{chrom2}_{end}_TERM-DEL'
                     row = [sv_str, '-', read_name, str(read_length), '?', '?']
                     writer.writerow(row)
 
-        final_bed2_tmp = '%s_tmp' % (self.final_bed2)
-        cmd = "cat %s | tail -n +2 | cut -f1 | grep -v '^-' | sort -k1V | uniq | tr '_' '\t' > %s" % (
-            self.final_result, final_bed2_tmp)
+        final_bed2_tmp = f'{self.final_bed2}_tmp'
+        cmd = f"cat {self.final_result} | tail -n +2 | cut -f1 | grep -v '^-' | sort -k1V | uniq | tr '_' '\t' > {final_bed2_tmp}"
         #print('cmd', cmd)
         run_shell_cmd(cmd)
 
-        options = BpToolsOptions(final_bed2_tmp, self.final_bed2, None, self.min_sv_size, self.max_sv_size)
-        bp_tools = BpTools(options)
-        bp_tools.merge_bp()
+        BpTools(
+            BpToolsOptions(
+                final_bed2_tmp,
+                self.final_bed2,
+                None,
+                self.min_sv_size,
+                self.max_sv_size
+            )
+        ).merge_bp()
 
     def run(self):
         self.index_fastq()

@@ -53,14 +53,14 @@ class Altref:
 
         output_prefix = options.output_prefix
         self.name = options.name
-        self.altref = '%s.altref' % (output_prefix)
-        self.localref = '%s.localref' % (output_prefix)
-        self.out_ref = '%s.fa' % (output_prefix)
-        self.out_bam = '%s_minimap2.bam' % (output_prefix)
-        self.out_result = '%s.result' % (output_prefix)
-        self.out_filtered_result = '%s_filtered.result' % (output_prefix)
-        self.out_filtered_bed2 = '%s_filtered.bed2' % (output_prefix)
-        self.filtered_read_fasta = '%s_filtered.fasta' % (output_prefix)
+        self.altref = f'{output_prefix}.altref'
+        self.localref = f'{output_prefix}.localref'
+        self.out_ref = f'{output_prefix}.fa'
+        self.out_bam = f'{output_prefix}_minimap2.bam'
+        self.out_result = f'{output_prefix}.result'
+        self.out_filtered_result = f'{output_prefix}_filtered.result'
+        self.out_filtered_bed2 = f'{output_prefix}_filtered.bed2'
+        self.filtered_read_fasta = f'{output_prefix}_filtered.fasta'
 
         load_cytobands()
 
@@ -109,7 +109,7 @@ class Altref:
     def gen_altref_file(self, sv_str=None):
         if sv_str:
             sv_str_list = [sv_str]
-            fa_file = '%s_%s' % (self.altref, sv_str)
+            fa_file = f'{self.altref}_{sv_str}'
         else:
             sv_str_list = self.sv_str_list
             fa_file = self.altref
@@ -124,48 +124,43 @@ class Altref:
                     ref_seq = info['ref_seq']
                     desc = info['desc']
 
-                    print('>%s %s' % (ref_seq_name, desc), file=out_file)
+                    print(f'>{ref_seq_name} {desc}', file=out_file)
                     seq_arr = [ref_seq[i: i + 70] for i in range(0, len(ref_seq), 70)]
                     for seq in seq_arr:
-                        print('%s' % seq, file=out_file)
+                        print(seq, file=out_file)
 
     def gen_localref_file(self, target_sv_str=None):
         if target_sv_str:
             sv_str_list = [target_sv_str]
-            fa_file = '%s_%s' % (self.localref, target_sv_str)
+            fa_file = f'{self.localref}_{target_sv_str}'
+
+            # gen out ref
+            altref = f'{self.altref}_{target_sv_str}'
+            out_ref = f'{self.altref}_{target_sv_str}.fa'
         else:
             sv_str_list = self.sv_str_list
             fa_file = self.localref
 
-        ref_info_list = []
-        for sv_str in sv_str_list:
-            ref_info = self.get_localref_info(sv_str)
-            ref_info_list.append(ref_info)
-
-        # gen localref fa
-        out_file = open(fa_file, 'w')
-        for ref_info in ref_info_list:
-            for info in ref_info:
-                ref_seq_name = info['ref_seq_name']
-                ref_seq = info['ref_seq']
-                desc = info['desc']
-
-                print('>%s %s' % (ref_seq_name, desc), file=out_file)
-                seq_arr = [ref_seq[i: i + 70] for i in range(0, len(ref_seq), 70)]
-                for seq in seq_arr:
-                    print('%s' % seq, file=out_file)
-
-        out_file.close()
-
-        # gen out ref
-        if target_sv_str:
-            altref = '%s_%s' % (self.altref, target_sv_str)
-            out_ref = '%s_%s.fa' % (self.altref, target_sv_str)
-        else:
+            # gen out ref
             altref = self.altref
             out_ref = self.out_ref
 
-        cmd = "cat %s %s > %s" % (self.localref, altref, out_ref)
+        ref_info_list = [self.get_localref_info(sv_str) for sv_str in sv_str_list]
+
+        # gen localref fa
+        with open(fa_file, 'w') as out_file:
+            for ref_info in ref_info_list:
+                for info in ref_info:
+                    ref_seq_name = info['ref_seq_name']
+                    ref_seq = info['ref_seq']
+                    desc = info['desc']
+
+                    print(f'>{ref_seq_name} {desc}', file=out_file)
+                    seq_arr = [ref_seq[i: i + 70] for i in range(0, len(ref_seq), 70)]
+                    for seq in seq_arr:
+                        print(seq, file=out_file)
+
+        cmd = f'cat {self.localref} {altref} > {out_ref}'
         #print('cmd', cmd)
         run_shell_cmd(cmd)
 
@@ -228,10 +223,14 @@ class Altref:
                 seq += rev_comp(get_ref(bp_chrom, bp_start, bp_start+config['buf_size']))
                 seq += get_ref(bp_chrom2, bp_end+1, bp_end+config['buf_size'])
         else:
-            print('Error. Invalid type: %s' % (bp_type))
+            print(f'Error. Invalid type: {bp_type}')
             exit(0)
 
-        ref_info.append({'ref_seq_name': 'altref_%s' % sv_str, 'ref_seq': seq, 'desc': desc})
+        ref_info.append({
+            'ref_seq_name': f'altref_{sv_str}',
+            'ref_seq': seq,
+            'desc': desc
+        })
 
         return ref_info
 
@@ -247,7 +246,11 @@ class Altref:
         seq = get_ref(bp_chrom, bp_start-config['ref_buf_size'], bp_start+config['ref_buf_size'])
         seq += get_ref(bp_chrom, bp_end-config['ref_buf_size'], bp_end+config['ref_buf_size'])
 
-        ref_info.append({'ref_seq_name': 'ref_%s' % sv_str, 'ref_seq': seq, 'desc': desc})
+        ref_info.append({
+            'ref_seq_name': f'ref_{sv_str}',
+            'ref_seq': seq,
+            'desc': desc
+        })
 
         return ref_info
 
@@ -361,13 +364,13 @@ class Altref:
         ref = self.config['ref']
 
         if sv_str:
-            altref = '%s_%s' % (self.altref, sv_str)
-            out_ref = '%s_%s.fa' % (self.altref, sv_str)
+            altref = f'{self.altref}_{sv_str}'
+            out_ref = f'{self.altref}_{sv_str}.fa'
         else:
             altref = self.altref
             out_ref = self.out_ref
 
-        cmd = "cat %s %s > %s" % (ref, altref, out_ref)
+        cmd = f'cat {ref} {altref} > {out_ref}'
         run_shell_cmd(cmd)
 
     # alignment
@@ -376,9 +379,9 @@ class Altref:
         samtools = self.config['samtools']
 
         if sv_str:
-            out_ref = '%s_%s.fa' % (self.altref, sv_str)
-            fastq = '%s_%s.fasta' % (self.altref, sv_str)
-            out_bam = '%s_%s.bam' % (self.altref, sv_str)
+            out_ref = f'{self.altref}_{sv_str}.fa'
+            fastq = f'{self.altref}_{sv_str}.fasta'
+            out_bam = f'{self.altref}_{sv_str}.bam'
         else:
             out_ref = self.out_ref
             fastq = self.filtered_read_fasta
@@ -397,9 +400,9 @@ class Altref:
     def get_mapq(self, sv_str, read_list):
         mapq = defaultdict(dict)
 
-        out_bam = '%s_%s.bam' % (self.altref, sv_str)
+        out_bam = f'{self.altref}_{sv_str}.bam'
         bam = pysam.AlignmentFile(out_bam, 'rb')
-        for read in bam.fetch('altref_%s' % sv_str):
+        for read in bam.fetch(f'altref_{sv_str}'):
             if read.is_secondary:
                 continue
 
@@ -475,7 +478,7 @@ class Altref:
         elif bp_type in ['INV', 'TRA']:
             sv_bps = [buf_size, buf_size * 3]
         else:
-            print('Error. Unknown bp_type %s' % (bp_type))
+            print(f'Error. Unknown bp_type {bp_type}')
             exit(0)
 
         supp_read = {}
@@ -483,7 +486,7 @@ class Altref:
 
         for sv_bp in sv_bps:
             # for read in bam.fetch('altref', sv_bp-1, sv_bp):
-            for read in bam.fetch('altref_%s' % sv_str, sv_bp-1, sv_bp):
+            for read in bam.fetch(f'altref_{sv_str}', sv_bp-1, sv_bp):
                 # if read.is_secondary or read.is_supplementary or read.mapping_quality < min_mapq:
                 if read.is_secondary or read.mapping_quality < min_mapq:
                     continue
@@ -617,9 +620,9 @@ class Altref:
 
                     for part in ['all', 'left', 'right']:
                         if part in mapq[read_name]:
-                            supp_read[read_name]['MAPQ_%s' % (part)] = mapq[read_name][part]
+                            supp_read[read_name][f'MAPQ_{part}'] = mapq[read_name][part]
                         else:
-                            supp_read[read_name]['MAPQ_%s' % (part)] = '-'
+                            supp_read[read_name][f'MAPQ_{part}'] = '-'
 
                     output = [
                         sv_str,
@@ -660,7 +663,7 @@ class Altref:
         self.all_supp_read = all_supp_read
 
     def gen_fasta(self, sv_str, read_info_list):
-        fasta_file = '%s_%s.fasta' % (self.altref, sv_str)
+        fasta_file = f'{self.altref}_{sv_str}.fasta'
 
         with open(fasta_file, 'w') as f:
             for read_name in read_info_list:
@@ -677,8 +680,8 @@ class Altref:
                 for part in seqs:
                     seq = seqs[part]
 
-                    print('>%s_%s' % (read_name, part), file=f)
-                    print('%s' % seq, file=f)
+                    print(f'>{read_name}_{part}', file=f)
+                    print(seq, file=f)
 
     def gen_mapq(self, sv_str, supp_read):
         mapq = {}
@@ -821,7 +824,7 @@ class Altref:
 
                     if sv_str != '-':
                         arr = sv_str.split('_')
-                        output = [arr[0], arr[1], arr[2], arr[3], arr[4]]
+                        output = arr[0:5]
                         writer_bed2.writerow(output)
 
                     sv_str = '-'
@@ -831,20 +834,23 @@ class Altref:
         samtools = self.config['samtools']
 
         # gen bed from bed2
-        bed = '%s.bed' % (self.output_prefix)
-        temp_bam = '%s_temp.bam' % (self.output_prefix)
+        bed = f'{self.output_prefix}.bed'
+        temp_bam = f'{self.output_prefix}_temp.bam'
 
-        cmd = "python bed2tobed.py -in_bed2 %s -out_bed %s -search_size %s" % (self.input_bed2, bed, search_size)
+        cmd = f'python bed2tobed.py -in_bed2 {self.input_bed2} -out_bed {bed} -search_size {search_size}'
         #print('cmd', cmd)
         run_shell_cmd(cmd)
 
         # gen temp bam
-        cmd = "%s view -@ 48 -L %s %s -b -M > %s && %s index -@ 48 %s" % (samtools, bed, self.orig_bam, temp_bam, samtools, temp_bam)
+        cmd = (
+            f'{samtools} view -@ 48 -L {bed} {self.orig_bam} -b -M > {temp_bam} && '
+            f'{samtools} index -@ 48 {temp_bam}'
+        )
         #print('cmd', cmd)
         run_shell_cmd(cmd)
 
         # gen fastq
-        cmd = "python bam2fasta.py -input_bam %s -input_fastq %s -output_fasta %s" % (temp_bam, self.fastq, self.filtered_read_fasta)
+        cmd = f'python bam2fasta.py -input_bam {temp_bam} -input_fastq {self.fastq} -output_fasta {self.filtered_read_fasta}'
         #print('cmd', cmd)
         run_shell_cmd(cmd)
 

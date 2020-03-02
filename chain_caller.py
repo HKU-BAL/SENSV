@@ -40,8 +40,8 @@ class ChainCaller:
         self.depth_region = []
         self.target_chain_list = []
 
-        self.dp_file = '%s.dp' % (options.output_prefix)
-        self.bed2_file = '%s.dp.bed2' % (options.output_prefix)
+        self.dp_file = f'{options.output_prefix}.dp'
+        self.bed2_file = f'{options.output_prefix}.dp.bed2'
 
     def load_config(self):
         self.config = {
@@ -73,7 +73,7 @@ class ChainCaller:
                 region_type = arr[4]
 
                 chrom, start, end = arr[0], int(float(arr[1])), int(float(arr[2]))
-                sv_str = '%s_%d_%d' % (chrom, start, end)
+                sv_str = f'{chrom}_{start}_{end}'
 
                 if do_filter:
                     avg_depth = self.get_avg_depth(sv_str)
@@ -96,7 +96,7 @@ class ChainCaller:
                     """
 
                     if is_skip:
-                        print('gender = %s, avg depth = %f, depth region skipped: %s_%s_%s' % (options.gender, avg_depth, chrom, start, end))
+                        print(f'gender = {options.gender}, avg depth = {avg_depth}, depth region skipped: {sv_str}')
                         continue
 
                 self.depth_region.append({
@@ -117,14 +117,19 @@ class ChainCaller:
         for region in self.depth_region:
             chrom, start, end, region_type = region['chrom'], region['start'], region['end'], region['region_type']
 
-            start1, start2 = start-config['buf_size'], start+config['buf_size']
-            end1, end2 = end-config['buf_size'], end+config['buf_size']
+            start1, start2 = start - config['buf_size'], start + config['buf_size']
+            end1, end2 = end - config['buf_size'], end + config['buf_size']
 
-            in_depth_region = 0
+            in_depth_region = False
 
             if 'strand' in info and 'strand2' in info:
-                if (region_type in ['DEL', 'DUP'] and info['strand'] != info['strand2']) or \
-                   (region_type in ['INV'] and info['strand'] == info['strand2']):
+                if (
+                    region_type in ['DEL', 'DUP'] and
+                    info['strand'] != info['strand2']
+                ) or (
+                    region_type in ['INV'] and
+                    info['strand'] == info['strand2']
+                ):
                     continue
 
             if (
@@ -136,7 +141,7 @@ class ChainCaller:
                 if region_type in ['DEL', 'DUP'] and info['bp_end'] - info['bp_start'] < options.min_sv_size_by_depth:
                     continue
 
-                in_depth_region = 1
+                in_depth_region = True
 
             if in_depth_region:
                 bp_depth_region_info['depth_region'] = {
@@ -160,15 +165,13 @@ class ChainCaller:
                 chain = []
                 prev_qname = None
 
-                # nextline = f.next()
-                # for l in [line, nextline]:
                 for l in [line]:
                     arr = l.strip().split()
                     qname, strand, n_chain, seq_len = arr[0], arr[1], int(arr[2]), int(arr[3])
 
                     # the two lines must be referring to the same reads
                     if prev_qname and qname != prev_qname:
-                        print("Error: reads in chain files not appear in '+' and'-' pair! (%s,%s)" % (prev_qname, qname))
+                        print(f'Error: reads in chain files not appear in '+' and'-' pair! ({prev_qname},{qname})')
                         continue
 
                     prev_qname = qname
@@ -178,7 +181,7 @@ class ChainCaller:
                         if count >= config['max_chain_count']:
                             break
 
-                        idx = 4+i*8
+                        idx = 4 + i * 8
                         _chain_id, seed_count, query_start, query_end, ref_chrom, ref_start, ref_end, score = \
                             int(arr[idx]), int(arr[idx+1]), int(arr[idx+2]), int(arr[idx+3]), arr[idx+4], \
                             int(arr[idx+5]), int(arr[idx+6]), int(arr[idx+7])
@@ -191,12 +194,18 @@ class ChainCaller:
                         # if seed_count < 200:
                         #    continue
 
-                        info = {'qname': get_short_name(qname), 'strand': strand, 'query_start': query_start, 'query_end': query_end,
-                                'ref_chrom': ref_chrom, 'ref_start': ref_start, 'ref_end': ref_end, 'seq_len': seq_len,
-                                'score': score, 'seed_count': seed_count}
-                        chain.append(info)
-
-                        #print('info', info)
+                        chain.append({
+                            'qname': get_short_name(qname),
+                            'strand': strand,
+                            'query_start': query_start,
+                            'query_end': query_end,
+                            'ref_chrom': ref_chrom,
+                            'ref_start': ref_start,
+                            'ref_end': ref_end,
+                            'seq_len': seq_len,
+                            'score': score,
+                            'seed_count': seed_count
+                        })
 
                         count += 1
 
@@ -310,27 +319,18 @@ class ChainCaller:
             if chain_list['strand'] == '0':
                 query_seq = rev_comp(query_seq)
 
-        """
-        class Options:
-            def __init__(self, query_name, query_seq, sv_str):
-                self.query_seq = query_seq
-                self.sv_str = sv_str
-                self.query_name = query_name
-                self.fastq_prefix = None
-                self.query_strand = None
+        sv_str = f"{chain_list['bp_chrom']}_{chain_list['bp_start']}_{chain_list['bp_chrom2']}_{chain_list['bp_end']}_{chain_list['sv_type']}"
 
-        options = Options(chain_list['qname'], query_seq, '%s_%s_%s_%s_%s' % (chain_list['bp_chrom'],
-                          chain_list['bp_start'], chain_list['bp_chrom2'], chain_list['bp_end'], chain_list['sv_type']))
-        dp = DP(options)
-        """
-
-        sv_str = '%s_%s_%s_%s_%s' % (chain_list['bp_chrom'], chain_list['bp_start'], chain_list['bp_chrom2'], chain_list['bp_end'], chain_list['sv_type'])
-        dp_options = DpOptions(sv_str, chain_list['qname'], None, None, None, query_seq)
-        dp = DP(dp_options)
-
-        result = dp.run()
-
-        return result
+        return DP(
+            DpOptions(
+                sv_str,
+                chain_list['qname'],
+                None,
+                None,
+                None,
+                query_seq
+            )
+        ).run()
 
     def do_dp(self):
         config = self.config
@@ -349,16 +349,44 @@ class ChainCaller:
         results = filter(lambda x: x and x['chrom'] != -1, results)
 
         toIntStr = lambda text: text if text.isdigit() else '23' if text == 'X' else '24'
-        sorted_results = sorted(results, key=lambda k: toIntStr(k['chrom']).rjust(2) + str(k['genomic_gap_start']).rjust(9) + str(k['genomic_gap_end']).rjust(9))
+        sorted_results = sorted(
+            results,
+            key=lambda k: (
+                toIntStr(k['chrom']).rjust(2) +
+                str(k['genomic_gap_start']).rjust(9) +
+                str(k['genomic_gap_end']).rjust(9)
+            )
+        )
 
         called_sv = {}
         with open(self.dp_file, 'w') as f_dp, open(self.bed2_file, 'w') as f_bed2:
             dp_writer = csv.writer(f_dp, delimiter='\t')
             bed2_writer = csv.writer(f_bed2, delimiter='\t')
 
-            dp_header=['chrom', 'genomic_gap_start', 'chrom2', 'genomic_gap_end', 'qname', 'query_len', 'ref_len', 'score','sv_type']
-            bed_header = ['chrom', 'genomic_gap_start', 'chrom2', 'genomic_gap_end', 'sv_type', 'qname',
-                          'query_len', 'ref_len', 'score', 'depth_start', 'depth_end']
+            dp_header=[
+                'chrom',
+                'genomic_gap_start',
+                'chrom2',
+                'genomic_gap_end',
+                'qname',
+                'query_len',
+                'ref_len',
+                'score',
+                'sv_type'
+            ]
+            bed_header = [
+                'chrom',
+                'genomic_gap_start',
+                'chrom2',
+                'genomic_gap_end',
+                'sv_type',
+                'qname',
+                'query_len',
+                'ref_len',
+                'score',
+                'depth_start',
+                'depth_end'
+            ]
 
             dp_writer.writerow(dp_header)
 
@@ -373,8 +401,12 @@ class ChainCaller:
                 if result['score'] < min(result['query_len'], config['gap_buf_size']*2) * 1.1:
                     continue
 
-                info = {'bp_chrom': result['chrom'], 'bp_start': result['genomic_gap_start'],
-                        'bp_chrom2': result['chrom2'], 'bp_end': result['genomic_gap_end']}
+                info = {
+                    'bp_chrom': result['chrom'],
+                    'bp_start': result['genomic_gap_start'],
+                    'bp_chrom2': result['chrom2'],
+                    'bp_end': result['genomic_gap_end']
+                }
                 bp_depth_region_info = self.get_bp_depth_region_info(info)
 
                 if bp_depth_region_info['depth_region']:
