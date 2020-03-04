@@ -1,2 +1,6 @@
 *.pyc
 *.vscode
+*.o
+*/libminimap2.a
+*/minimap2
+dp/dp_stdin
