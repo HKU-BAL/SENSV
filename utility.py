@@ -59,11 +59,18 @@ def load_common_config():
 
 def get_var(group, var):
     global config
-
     if not config:
         load_config()
 
     return config[group][var]
+
+
+def set_var(group, var, value):
+    global config
+    if not config:
+        load_config()
+
+    config[group][var] = value
 
 
 def base_directory():

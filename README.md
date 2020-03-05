@@ -1,8 +1,6 @@
 # SENSV
 
 ## Installation
-
-### Step 1. Install required packages
 ```
 # add conda channels
 conda config --add channels defaults
@@ -23,41 +21,37 @@ git clone https://github.com/HKU-BAL/SENSV.git
 
 # setup sensv
 cd SENSV
-export PATH=`pwd`":$PATH"
 make
+export PATH=`pwd`":$PATH"
 
 # run sensv like this afterwards
 sensv --help
 ```
 
-### Step 2. Fill in the paths for the required file
+## After installation
 
-In `config.ini`,a GRCh37 reference file is needed. \
-If you do not have it in advance, you can download it with the following commands
+### Download GRCh37 reference file
 ```
 curl ftp://ftp-trace.ncbi.nih.gov/1000genomes/ftp/technical/reference/phase2_reference_assembly_sequence/hs37d5.fa.gz > hs37d5.fa.gz
+
 gzip -d hs37d5.fa.gz
+
+# make sure that the reference index is also available in <path_to_GRCh37_ref>.fai
 samtools faidx hs37d5.fa
 ```
-```
-# config.ini
-[common]
-samtools = samtools
-minimap2 = minimap2
-ref_37 = <path_of_GRCh37_ref>
-```
-Please also make sure that the reference index is also available in <path_to_GRCh37_ref>.fai
+
 
 ## Usage
 
 You will need a fastq file of the sample to run SENSV.
 
-python SENSV.py [options]
+sensv [options]
 
 ```
 Required Arguments:
 -sample_name - Name of the sample
 -fastq - The path to the reads, either gziped or raw
+-ref - Reference fasta file
 -output_prefix - Output prefix for all intermediate files and final output, preferably inside a folder.
 
 Optional Arguments:

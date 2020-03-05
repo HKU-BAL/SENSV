@@ -14,6 +14,7 @@ from utility import (
     log,
     run_shell_cmd,
     base_directory,
+    set_var,
 )
 
 from split_read_caller import SplitReadCallerOptions, SplitReadCaller
@@ -30,6 +31,9 @@ class SENSV is the integration class for all the steps of SV calling
 
 class SENSV:
     def __init__(self, options):
+        # init config
+        set_var("common", "ref_ver", options.ref_ver)
+        set_var("common", f'ref_{options.ref_ver}', options.ref)
         self.load_config()
 
         default_min_sv_size = int(self.config['default_min_sv_size'])
@@ -125,7 +129,9 @@ class SENSV:
     @log(message="step 0 (convert fastq.gz to bgzip and index it)")
     def index_fastq(self):
         FASTQ_INDEX_SCRIPT = f'{base_directory() / "index_fastq.sh"}'
-        run_shell_cmd(f'{FASTQ_INDEX_SCRIPT} {self.fastq_file_orig} {self.output_prefix}')
+        cmd = f'{FASTQ_INDEX_SCRIPT} {self.fastq_file_orig} {self.output_prefix}'
+        logging.info(f'cmd: #{cmd}#')
+        run_shell_cmd(cmd)
 
     @log(message="step 1 (generate bam and chain files)")
     def gen_bam_and_chain_file(self):
@@ -478,6 +484,9 @@ if __name__ == "__main__":
                         help='disable gen altref bam', required=False, type=int)
 
     parser.add_argument('-target_sv_type', '--target_sv_type', help='target sv type', required=False)
+
+    parser.add_argument('-ref_ver', '--ref_ver', help="reference version (default 37)", required=False, type=str, default="37")
+    parser.add_argument('-ref', '--ref', help="reference fasta file absolute path", required=True, type=str)
 
     init_logger()
 
