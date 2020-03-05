@@ -16,16 +16,22 @@ conda create -n sensv-env python=3.7
 conda activate sensv-env
 
 # install conda packages
-conda install minimap2=2.17 samtools=1.10 pigz=2.3.4 grabix=0.1.8 pypy3.6 survivor=1.0.6 pandas=1.0.1 scipy=1.4.1 pysam=0.15.3
-```
+conda install minimap2=2.17 samtools=1.7 pigz=2.3.4 grabix=0.1.8 pypy3.6 survivor=1.0.6 pandas=1.0.1 scipy=1.4.1 pysam=0.15.3
 
-### Step 2. Clone the repository
-
-```
+# clone repo
 git clone https://github.com/HKU-BAL/SENSV.git
+
+# setup sensv
+cd SENSV
+export PATH=`pwd`":$PATH"
+chmod +x SENSV.py
+ln -s SENSV.py sensv
+
+# run sensv like this afterwards
+sensv --help
 ```
 
-### Step 3. Fill in the paths for the required file
+### Step 2. Fill in the paths for the required file
 
 In `config.ini`,a GRCh37 reference file is needed. \
 If you do not have it in advance, you can download it with the following commands
