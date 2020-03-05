@@ -18,6 +18,7 @@ from utility import (
     get_sorted_sv_str_list,
     get_seq_from_fastq,
     init_logger,
+    base_directory,
 )
 
 """
@@ -61,6 +62,8 @@ class Altref:
         self.out_filtered_result = f'{output_prefix}_filtered.result'
         self.out_filtered_bed2 = f'{output_prefix}_filtered.bed2'
         self.filtered_read_fasta = f'{output_prefix}_filtered.fasta'
+
+        self.is_log_command = False
 
         load_cytobands()
 
@@ -161,7 +164,8 @@ class Altref:
                         print(seq, file=out_file)
 
         cmd = f'cat {self.localref} {altref} > {out_ref}'
-        #print('cmd', cmd)
+        if self.is_log_command:
+            print(f'cmd: #{cmd}#')
         run_shell_cmd(cmd)
 
     # genrate sequence of alt. ref.
@@ -371,6 +375,8 @@ class Altref:
             out_ref = self.out_ref
 
         cmd = f'cat {ref} {altref} > {out_ref}'
+        if self.is_log_command:
+            print(f'cmd: #{cmd}#')
         run_shell_cmd(cmd)
 
     # alignment
@@ -394,7 +400,8 @@ class Altref:
         else:
             cmd = "%s -Y -t 48 --MD -a %s %s | %s sort -@ 48 -o %s - && %s index -@ 48 %s" % \
                 (minimap2, out_ref, fastq, samtools, out_bam, samtools, out_bam)
-        #print('cmd', cmd)
+        if self.is_log_command:
+            print(f'cmd: #{cmd}#')
         run_shell_cmd(cmd)
 
     def get_mapq(self, sv_str, read_list):
@@ -837,8 +844,13 @@ class Altref:
         bed = f'{self.output_prefix}.bed'
         temp_bam = f'{self.output_prefix}_temp.bam'
 
-        cmd = f'python bed2tobed.py -in_bed2 {self.input_bed2} -out_bed {bed} -search_size {search_size}'
-        #print('cmd', cmd)
+        base_dir = base_directory()
+        bed2tobed = base_dir / 'bed2tobed.py'
+        bam2fasta = base_dir / 'bam2fasta.py'
+
+        cmd = f'python {bed2tobed} -in_bed2 {self.input_bed2} -out_bed {bed} -search_size {search_size}'
+        if self.is_log_command:
+            print(f'cmd: #{cmd}#')
         run_shell_cmd(cmd)
 
         # gen temp bam
@@ -846,12 +858,14 @@ class Altref:
             f'{samtools} view -@ 48 -L {bed} {self.orig_bam} -b -M > {temp_bam} && '
             f'{samtools} index -@ 48 {temp_bam}'
         )
-        #print('cmd', cmd)
+        if self.is_log_command:
+            print(f'cmd: #{cmd}#')
         run_shell_cmd(cmd)
 
         # gen fastq
-        cmd = f'python bam2fasta.py -input_bam {temp_bam} -input_fastq {self.fastq} -output_fasta {self.filtered_read_fasta}'
-        #print('cmd', cmd)
+        cmd = f'python {bam2fasta} -input_bam {temp_bam} -input_fastq {self.fastq} -output_fasta {self.filtered_read_fasta}'
+        if self.is_log_command:
+            print(f'cmd: #{cmd}#')
         run_shell_cmd(cmd)
 
     def run(self):

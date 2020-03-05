@@ -9,6 +9,7 @@ from utility import (
     load_cytobands,
     rev_comp,
     run_shell_cmd,
+    base_directory,
 )
 
 """class DP is used for executing DP. It first generates ref. seq. based on
@@ -115,7 +116,7 @@ class DP:
     def run_dp(self):
         self.gen_ref_seq()
 
-        cmd = '%s' % (self.dp_exe)
+        cmd = str(base_directory() / self.dp_exe)
         stdin_input = '%s %s' % (self.options.query_seq, self.ref_seq)
         output = run_shell_cmd(cmd, stdin_input)
 

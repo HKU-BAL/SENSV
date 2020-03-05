@@ -2,6 +2,7 @@ import os
 import shutil
 import csv
 import logging
+from pathlib import Path
 from argparse import ArgumentParser
 from os.path import dirname
 
@@ -11,6 +12,7 @@ from utility import (
     init_logger,
     log,
     run_shell_cmd,
+    base_directory,
 )
 
 from split_read_caller import SplitReadCallerOptions, SplitReadCaller
@@ -121,17 +123,12 @@ class SENSV:
 
     @log(message="step 0 (convert fastq.gz to bgzip and index it)")
     def index_fastq(self):
-        FASTQ_INDEX_SCRIPT = './index_fastq.sh'
+        FASTQ_INDEX_SCRIPT = f'{base_directory() / "index_fastq.sh"}'
         run_shell_cmd(f'{FASTQ_INDEX_SCRIPT} {self.fastq_file_orig} {self.output_prefix}')
 
     @log(message="step 1 (generate bam and chain files)")
     def gen_bam_and_chain_file(self):
-        """
-        generate bam file and chain file
-        - input: fastq
-        - output: bam, chain file
-        """
-        my_minimap2 = self.config['my_minimap2']
+        my_minimap2 = base_directory() / self.config['my_minimap2']
         samtools = self.config['samtools']
         ref = self.config['ref']
 
@@ -165,18 +162,19 @@ class SENSV:
 
     @log(message="step 2 (generate depth file)")
     def gen_depth_file(self):
-        basedir = os.path.dirname(os.path.realpath('__file__'))
-        current_dir = os.getcwd() + "/"
         is_absolute_path = self.output_prefix[0] == '/'
+        io_directory = Path('' if is_absolute_path else os.getcwd())
+        base_dir = base_directory()
 
-        depth_path = basedir + "/depth"
-        input_bam_file = f"{'' if is_absolute_path else current_dir}{self.minimap2_bam_file}"
+        depth_path = base_dir / "depth"
+        input_bam_file = io_directory / self.minimap2_bam_file
         input_ref_file = self.config['depth_ref']
-        output_path = f"{'' if is_absolute_path else current_dir}{self.output_prefix}"
+        gender = self.gender
+        output_path = io_directory / self.output_prefix
 
         cmd = (
             f'cd {depth_path} && '
-            f'python depth_normalize_gender_thread.py {input_bam_file} {input_ref_file} {self.gender} {output_path}'
+            f'python depth_normalize_gender_thread.py {input_bam_file} {input_ref_file} {gender} {output_path}'
         )
         logging.info(f"cmd: #{cmd}#")
 
@@ -311,6 +309,7 @@ class SENSV:
         ).run()
 
         cmd = f'mv {self.split_bed2_file}_filtered.bed2 {self.validate_bed2_file}'
+        # logging.info(f"cmd: #{cmd}#")
         run_shell_cmd(cmd)
 
     @log(message="step 7 (find breakpoint from chain and dp)")
@@ -330,8 +329,6 @@ class SENSV:
 
     @log(message="step 8 (cluster and merge cigarRead in bed2_file)")
     def merge_bed2(self):
-        MERGE_SV_SCRIPT = './merge_sv.sh'
-
         merged_bed2_file_tmp = '%s_tmp' % (self.merged_bed2_file)
 
         shutil.copy2(self.validate_bed2_file, merged_bed2_file_tmp)
@@ -351,6 +348,7 @@ class SENSV:
                 outfile.write(infile.read())
 
             if os.path.getsize(self.lt_10k_bed2):
+                MERGE_SV_SCRIPT = f'{base_directory() / "merge_sv.sh"}'
                 cmd = f'{MERGE_SV_SCRIPT} {self.lt_10k_bed2} {self.lt_10k_merge_bed2}'
                 run_shell_cmd(cmd)
 

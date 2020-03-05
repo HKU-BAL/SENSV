@@ -66,12 +66,19 @@ def get_var(group, var):
     return config[group][var]
 
 
+def base_directory():
+    from pathlib import Path
+    return Path(path.dirname(__file__))
+
+
 def load_config():
     from configparser import ConfigParser
     global config
 
+    config_file = base_directory() / "config.ini"
+
     config = ConfigParser()
-    config.read('config.ini')
+    config.read(config_file)
 
 
 def get_ref(chr, start_orig, end):
@@ -170,8 +177,10 @@ def run_shell_cmd(cmd, stdin_input=None):
 def load_cytobands():
     global cytobands
 
+    cytoband_file_path = base_directory() / 'data_file' / 'cytoband'
+
     cytobands = defaultdict(list)
-    with open('data_file/cytoband', 'r') as f:
+    with open(cytoband_file_path, 'r') as f:
         for line in f:
             arr = line.strip().split()
             if arr[0][0] == '#':
@@ -444,8 +453,10 @@ def gen_altref_seq(sv_str, buf_size):
 
 
 def load_depth_list():
+    depth_list_path = base_directory() / 'depth' / 'depth_list'
+
     l = defaultdict(list)
-    with open("depth/depth_list", 'r') as f:
+    with open(depth_list_path, 'r') as f:
         for line in f:
             chrom, start, end, depth = line.strip().split("\t")
             start = int(start)
