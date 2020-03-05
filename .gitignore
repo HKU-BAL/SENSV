@@ -2,5 +2,6 @@
 *.vscode
 *.o
 */libminimap2.a
+*.bak
 */minimap2
-dp/dp_stdin
+*/dp_stdin

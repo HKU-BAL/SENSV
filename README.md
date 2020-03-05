@@ -24,8 +24,7 @@ git clone https://github.com/HKU-BAL/SENSV.git
 # setup sensv
 cd SENSV
 export PATH=`pwd`":$PATH"
-chmod +x SENSV.py
-ln -s SENSV.py sensv
+make
 
 # run sensv like this afterwards
 sensv --help
