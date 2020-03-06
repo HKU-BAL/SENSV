@@ -15,6 +15,7 @@ from utility import (
     run_shell_cmd,
     base_directory,
     set_var,
+    optional_string_to_optional_int,
 )
 
 from split_read_caller import SplitReadCallerOptions, SplitReadCaller
@@ -36,21 +37,19 @@ class SENSV:
         set_var("common", f'ref_{options.ref_ver}', options.ref)
         self.load_config()
 
-        default_min_sv_size = int(self.config['default_min_sv_size'])
         output_prefix = options.output_prefix
         ref = self.config['ref']
-
-        default_min_sv_size = int(self.config['default_min_sv_size'])
-        default_min_sv_size_by_depth = int(self.config['default_min_sv_size_by_depth'])
-        default_max_sv_size = int(self.config['default_max_sv_size'])
 
         self.sample_name = options.sample_name
         self.fastq_file_orig = options.fastq_file
         self.output_prefix = output_prefix
 
-        self.min_sv_size = options.min_sv_size if options.min_sv_size else default_min_sv_size
+        default_min_sv_size = self.config['default_min_sv_size']
+        default_min_sv_size_by_depth = self.config['default_min_sv_size_by_depth']
+        default_max_sv_size = self.config['default_max_sv_size']
+        self.min_sv_size = options.min_sv_size if options.min_sv_size is not None else default_min_sv_size
         self.min_sv_size_by_depth = default_min_sv_size_by_depth
-        self.max_sv_size = options.max_sv_size if options.max_sv_size else default_max_sv_size
+        self.max_sv_size = options.max_sv_size if options.max_sv_size is not None else default_max_sv_size
 
         self.fastq_file = f'{output_prefix}.fastq.gz'
         self.fastq_prefix = output_prefix
@@ -114,9 +113,9 @@ class SENSV:
             'ref_ver': get_var('common', 'ref_ver'),
             'samtools': get_var('common', 'samtools'),
             'ref': get_var('common', f'ref_{get_var("common", "ref_ver")}'),
-            'default_min_sv_size': int(get_var('default_value', 'min_sv_size')),
-            'default_min_sv_size_by_depth': int(get_var('default_value', 'min_sv_size_by_depth')),
-            'default_max_sv_size': int(get_var('default_value', 'max_sv_size')),
+            'default_min_sv_size': int(optional_string_to_optional_int(get_var('default_value', 'min_sv_size')) or 0),
+            'default_min_sv_size_by_depth': int(optional_string_to_optional_int(get_var('default_value', 'min_sv_size_by_depth')) or 0),
+            'default_max_sv_size': int(optional_string_to_optional_int(get_var('default_value', 'max_sv_size')) or 0),
             'sv_type': get_var('default_value', 'sv_type'),
             'my_minimap2': get_var('dp', 'my_minimap2'),
             'chrom_list': get_var('denovo_common', 'chrom_list'),

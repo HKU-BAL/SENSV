@@ -57,12 +57,21 @@ def load_common_config():
     }
 
 
+def optional_string_to_optional_int(string):
+    if string is None:
+        return None
+    return int(string)
+
+
 def get_var(group, var):
     global config
     if not config:
         load_config()
 
-    return config[group][var]
+    try:
+        return config[group][var]
+    except:
+        return None
 
 
 def set_var(group, var, value):
