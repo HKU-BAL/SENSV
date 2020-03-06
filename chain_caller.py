@@ -20,7 +20,7 @@ class ChainCaller finds target SV regions based on chain info.
 
 
 class ChainCallerOptions:
-    def __init__(self, depth_file, chain_file, fastq_file, bam_file, output_prefix, min_sv_size_by_depth, disable_dp_filter, gender):
+    def __init__(self, depth_file, chain_file, fastq_file, bam_file, output_prefix, min_sv_size_by_depth, disable_dp_filter, gender, nprocs):
         self.depth_file = depth_file
         self.chain_file = chain_file
         self.fastq_file = fastq_file
@@ -29,6 +29,7 @@ class ChainCallerOptions:
         self.min_sv_size_by_depth = min_sv_size_by_depth
         self.disable_dp_filter = disable_dp_filter
         self.gender = gender
+        self.nprocs = nprocs
 
 
 class ChainCaller:
@@ -45,7 +46,6 @@ class ChainCaller:
 
     def load_config(self):
         self.config = {
-            'pool_size': int(get_var('chain_caller', 'pool_size')),
             'buf_size': int(get_var('chain_caller', 'buf_size')),
             'max_chain_count': int(get_var('chain_caller', 'max_chain_count')),
             'gap_buf_size': int(get_var('dp', 'gap_buf_size')),
@@ -336,10 +336,8 @@ class ChainCaller:
         config = self.config
         options = self.options
 
-        pool_size = config['pool_size']
-        #pool_size = len(self.target_chain_list)
-
-        pool = Pool(pool_size)
+        nprocs = self.options.nprocs
+        pool = Pool(processes=nprocs)
         results = pool.map(self, self.target_chain_list)
         pool.close()
         pool.join()

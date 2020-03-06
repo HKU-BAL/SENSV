@@ -3,11 +3,11 @@
 . config.sh
 
 usage() {
-  echo "usage: $0 <in_fastq.gz> <out_prefix>"
+  echo "usage: $0 <in_fastq.gz> <out_prefix> <nthread>"
   exit 1
 }
 
-if [ -z $1 ] || [ -z $2 ];
+if [ -z $1 ] || [ -z $2 ] || [ -z $3 ];
 then
   usage
   exit 1
@@ -17,8 +17,8 @@ set -e
 
 in_fastq_gz=$1
 out_prefix=$2
+nthread=$3
 
-nthread=48
 out_gz=${out_prefix}.fastq.gz
 
 echo "out_gz=$out_gz"

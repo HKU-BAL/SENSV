@@ -14,12 +14,13 @@ merge_dist = 100
 
 
 class BpToolsOptions:
-    def __init__(self, input_bed2, output_bed2, fastq_prefix, min_sv_size, max_sv_size):
+    def __init__(self, input_bed2, output_bed2, fastq_prefix, min_sv_size, max_sv_size, nprocs):
         self.input_bed2 = input_bed2
         self.output_bed2 = output_bed2
         self.fastq_prefix = fastq_prefix
         self.min_sv_size = min_sv_size
         self.max_sv_size = max_sv_size
+        self.nprocs = nprocs
 
 
 class BpTools:
@@ -170,8 +171,8 @@ class BpTools:
 
         self.load_param_str_list()
 
-        pool_size = min(len(self.param_str_list), 500)
-        pool = Pool(pool_size)
+        nprocs = min(len(self.param_str_list), self.options.nprocs)
+        pool = Pool(processes=nprocs)
         results = pool.map(self, self.param_str_list)
         pool.close()
         pool.join()

@@ -20,7 +20,7 @@ class SplitReadSv finds SV candidates of all chromosome based on the cigar strin
 
 
 class SplitReadCallerOptions:
-    def __init__(self, bam_file, chrom_list, min_sv_size, max_sv_size, target_sv_type, out_bed2, depth_bed2, term_threshold, lt_10k_bed2, fai_file):
+    def __init__(self, bam_file, chrom_list, min_sv_size, max_sv_size, target_sv_type, out_bed2, depth_bed2, term_threshold, lt_10k_bed2, fai_file, nprocs):
         self.bam_file = bam_file
         self.chrom_list = chrom_list
         self.min_sv_size = int(min_sv_size)
@@ -31,6 +31,7 @@ class SplitReadCallerOptions:
         self.term_threshold = term_threshold
         self.lt_10k_bed2 = lt_10k_bed2
         self.fai_file = fai_file
+        self.nprocs = nprocs
 
 
 class SplitReadCaller:
@@ -866,9 +867,10 @@ class SplitReadCaller:
         self.load_depth_region()
 
         chrom_list = self.options.chrom_list.split(',')
+        nprocs = min(len(chrom_list), self.options.nprocs)
 
         results = []
-        pool = Pool(len(chrom_list))
+        pool = Pool(processes=nprocs)
         results = pool.map(self, chrom_list)
         pool.close()
         pool.join()
@@ -891,6 +893,7 @@ def get_split_read_caller_options(options):
     term_threshold = options.term_threshold
     lt_10k_bed2 = options.lt_10k_bed2
     fai_file = options.fai_file
+    nprocs = options.nprocs
 
     return SplitReadCallerOptions(
         bam_file,
@@ -903,6 +906,7 @@ def get_split_read_caller_options(options):
         term_threshold,
         lt_10k_bed2,
         fai_file,
+        nprocs,
     )
 
 
@@ -919,6 +923,7 @@ if __name__ == "__main__":
     parser.add_argument('-term_threshold', '--term_threshold', help='term threshold', required=False, type=int)
     parser.add_argument('-lt_10k_bed2', '--lt_10k_bed2', help='less-than-10k bed2', required=True)
     parser.add_argument('-fai_file', '--fai_file', help='ref. index file', required=True)
+    parser.add_argument('-nprocs', '--nprocs', help="max # of processes to run", required=False, type=int, default=48)
 
     SplitReadCaller(
         get_split_read_caller_options(parser.parse_args())

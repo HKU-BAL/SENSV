@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
 Created on Wed Apr 22 16:30:06 2019
@@ -23,6 +23,8 @@ parser.add_argument('sample_norm_file', type=str, help='sample norm file path fo
 parser.add_argument('reference', help='input ref file.')
 parser.add_argument('gender',type=str,help='patient gender')
 parser.add_argument('output_dir', help='output directory.')
+parser.add_argument('nprocs', help='max # of processes to run.', type=int)
+
 args = parser.parse_args()
 ref = []
 regions = []
@@ -45,7 +47,7 @@ with open(args.reference, "r") as f:
 
     assert reference_len != 0, "the reference is empty"
 
-with open(sample_file, "rU") as f:
+with open(sample_file, "r") as f:
     has_header = csv.Sniffer().has_header(f.readline())
     f.seek(0)
     readSample = csv.reader(f, delimiter=',')
@@ -78,13 +80,13 @@ def local_max_subarray(df, size, min_len=500000):
     while curPos < size - 1:
         curDif = df.at[curPos, 'diflognorm']
         curPos += 1
-        
+
         if curDif > (max_ending_here + curDif):
             # new start of summation
 
             if len(candidates) > prev_n_candidates:
                 # rewind current position to end of last peak if we have a new peak
-                curPos = start2row[int(candidates[-1][-1])] 
+                curPos = start2row[int(candidates[-1][-1])]
                 temp_start_index = temp_end_index = df.at[curPos, 'start']
                 max_ending_here = 0
                 prev_n_candidates = len(candidates)
@@ -98,7 +100,7 @@ def local_max_subarray(df, size, min_len=500000):
         temp_end_index = df.at[curPos if curPos != size else size - 1, 'start']
         max_ending_here = max_ending_here + curDif
         if (temp_start_index == None): temp_start_index = df.at[0, 'start']
-        
+
 
         # skip updating candidates array if subarray length is not long enough
         if temp_end_index == None or temp_start_index == None or temp_end_index - temp_start_index < min_len: continue
@@ -124,7 +126,8 @@ def getDifByChr(chr_num):
             xs=[np.float32(ref[row][1]),np.float32(ref[row][2]),np.float32(ref[row][3]),np.float32(ref[row][4]),np.float32(ref[row][5]),np.float32(ref[row][6]),np.float32(ref[row][7]),np.float32(ref[row][9]),np.float32(ref[row][10]),np.float32(ref[row][11]),np.float32(ref[row][12]),np.float32(ref[row][13]),np.float32(ref[row][14]),np.float32(ref[row][15]),np.float32(ref[row][16]),np.float32(ref[row][17]),np.float32(ref[row][18]),np.float32(ref[row][19]),np.float32(ref[row][20]),np.float32(ref[row][21]),np.float32(ref[row][22]),np.float32(ref[row][23]),np.float32(ref[row][24]),np.float32(ref[row][25]),np.float32(ref[row][26])]
             xs_w=scipy.stats.mstats.winsorize(xs,limits=[0,0.05])
             mean=sum(xs_w)/len(xs_w)
-            if(mean==0): continue;
+            if mean == 0:
+                continue
             std=np.std(xs_w)
             pos = ref[row][27]
             x = np.float32(sample[row][1])
@@ -163,20 +166,20 @@ def getDifByChr(chr_num):
             #elif(depth_3=='n' and args.gender=='m'):
             #    xs=[np.float32(ref[row][4]),np.float32(ref[row][7]),np.float32(ref[row][17]),np.float32(ref[row][20]),np.float32(ref[row][23])]
             #elif(depth_3=='y' and args.gender=='f'):
-            #    xs=[np.float32(ref[row][48]),np.float32(ref[row][47]),np.float32(ref[row][45]),np.float32(ref[row][10]),np.float32(ref[row][44]),np.float32(ref[row][43]),np.float32(ref[row][16]),np.float32(ref[row][41]),np.float32(ref[row][40]),np.float32(ref[row][38]),np.float32(ref[row][37]),np.float32(ref[row][36])]                
+            #    xs=[np.float32(ref[row][48]),np.float32(ref[row][47]),np.float32(ref[row][45]),np.float32(ref[row][10]),np.float32(ref[row][44]),np.float32(ref[row][43]),np.float32(ref[row][16]),np.float32(ref[row][41]),np.float32(ref[row][40]),np.float32(ref[row][38]),np.float32(ref[row][37]),np.float32(ref[row][36])]
             #else:
-            #    xs=[np.float32(ref[row][5]),np.float32(ref[row][6]),np.float32(ref[row][8]),np.float32(ref[row][12]),np.float32(ref[row][13]),np.float32(ref[row][18]),np.float32(ref[row][19]),np.float32(ref[row][21]),np.float32(ref[row][22]),np.float32(ref[row][24])]               
+            #    xs=[np.float32(ref[row][5]),np.float32(ref[row][6]),np.float32(ref[row][8]),np.float32(ref[row][12]),np.float32(ref[row][13]),np.float32(ref[row][18]),np.float32(ref[row][19]),np.float32(ref[row][21]),np.float32(ref[row][22]),np.float32(ref[row][24])]
             if(args.gender=='f'):
                 xs=[np.float32(ref[row][5]),np.float32(ref[row][6]),np.float32(ref[row][10]),np.float32(ref[row][12]),np.float32(ref[row][13]),np.float32(ref[row][16]),np.float32(ref[row][18]),np.float32(ref[row][19]),np.float32(ref[row][21]),np.float32(ref[row][22]),np.float32(ref[row][24])]
             elif(args.gender=='m'):
-                xs=[np.float32(ref[row][1]),np.float32(ref[row][2]),np.float32(ref[row][3]),np.float32(ref[row][4]),np.float32(ref[row][7]),np.float32(ref[row][9]),np.float32(ref[row][11]),np.float32(ref[row][14]),np.float32(ref[row][15]),np.float32(ref[row][17]),np.float32(ref[row][20]),np.float32(ref[row][23]),np.float32(ref[row][25]),np.float32(ref[row][26])]  
-            xs_w=scipy.stats.mstats.winsorize(xs,limits=[0,0.05])                
-            mean=sum(xs_w)/len(xs_w)     
-            if(mean==0):
-                    continue;
+                xs=[np.float32(ref[row][1]),np.float32(ref[row][2]),np.float32(ref[row][3]),np.float32(ref[row][4]),np.float32(ref[row][7]),np.float32(ref[row][9]),np.float32(ref[row][11]),np.float32(ref[row][14]),np.float32(ref[row][15]),np.float32(ref[row][17]),np.float32(ref[row][20]),np.float32(ref[row][23]),np.float32(ref[row][25]),np.float32(ref[row][26])]
+            xs_w=scipy.stats.mstats.winsorize(xs,limits=[0,0.05])
+            mean=sum(xs_w)/len(xs_w)
+            if mean == 0:
+                continue
             std=np.std(xs_w)
             pos=ref[row][27]
-            x=sample[row][1]           
+            x=sample[row][1]
             norm=scipy.stats.norm(mean, std).pdf(x)
             halfnorm=scipy.stats.norm(mean/2, std).pdf(x)
             dupnorm=scipy.stats.norm(mean * 1.5,std).pdf(x)
@@ -206,7 +209,7 @@ def getDifByChr(chr_num):
             diflikhood_half = diflikhood_half.append(df_half, ignore_index=True)
             diflikhood_dup=diflikhood_dup.append(df_dup,ignore_index=True)
     return diflikhood_half,diflikhood_dup
-    
+
 def process(chrm):
     results_del = pd.DataFrame(columns=['chr', 'start', 'end','sum of diflihood', 'del'])
     results_dup = pd.DataFrame(columns=['chr', 'start', 'end','sum of diflihood', 'dup'])
@@ -244,7 +247,8 @@ def main():
         end=25
 
     chrm_list = range(1, end)
-    pool = Pool(len(chrm_list))
+    nprocs = min(len(chrm_list), args.nprocs)
+    pool = Pool(processes=nprocs)
     results = pool.map(process, chrm_list)
     pool.close()
     pool.join()
@@ -270,4 +274,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

@@ -36,6 +36,7 @@ class SENSV:
         set_var("common", "ref_ver", options.ref_ver)
         set_var("common", f'ref_{options.ref_ver}', options.ref)
         self.load_config()
+        self.nprocs = options.nprocs
 
         output_prefix = options.output_prefix
         ref = self.config['ref']
@@ -128,7 +129,7 @@ class SENSV:
     @log(message="step 0 (convert fastq.gz to bgzip and index it)")
     def index_fastq(self):
         FASTQ_INDEX_SCRIPT = f'{base_directory() / "index_fastq.sh"}'
-        cmd = f'{FASTQ_INDEX_SCRIPT} {self.fastq_file_orig} {self.output_prefix}'
+        cmd = f'{FASTQ_INDEX_SCRIPT} {self.fastq_file_orig} {self.output_prefix} {self.nprocs}'
         logging.info(f'cmd: #{cmd}#')
         run_shell_cmd(cmd)
 
@@ -177,10 +178,11 @@ class SENSV:
         input_ref_file = self.config['depth_ref']
         gender = self.gender
         output_path = io_directory / self.output_prefix
+        nprocs = self.nprocs
 
         cmd = (
             f'cd {depth_path} && '
-            f'python depth_normalize_gender_thread.py {input_bam_file} {input_ref_file} {gender} {output_path}'
+            f'python depth_normalize_gender_thread.py {input_bam_file} {input_ref_file} {gender} {output_path} {nprocs}'
         )
         logging.info(f"cmd: #{cmd}#")
 
@@ -203,6 +205,7 @@ class SENSV:
                 term_threshold,
                 self.lt_10k_bed2,
                 self.fai_file,
+                self.nprocs,
             )
         ).run()
 
@@ -286,7 +289,8 @@ class SENSV:
                 tmp_bed2,
                 self.fastq_prefix,
                 self.min_sv_size,
-                self.max_sv_size
+                self.max_sv_size,
+                self.nprocs,
             )
         ).refine_bp()
 
@@ -296,7 +300,8 @@ class SENSV:
                 self.split_bed2_file,
                 self.fastq_prefix,
                 self.min_sv_size,
-                self.max_sv_size
+                self.max_sv_size,
+                self.nprocs,
             )
         ).merge_bp()
 
@@ -310,7 +315,8 @@ class SENSV:
                 self.fastq_file,
                 self.minimap2_bam_file,
                 self.split_bed2_file,
-                action
+                action,
+                self.nprocs,
             )
         ).run()
 
@@ -330,6 +336,7 @@ class SENSV:
                 self.min_sv_size_by_depth,
                 self.disable_dp_filter,
                 self.gender,
+                self.nprocs,
             )
         ).run()
 
@@ -367,7 +374,8 @@ class SENSV:
                 self.merged_bed2_file,
                 self.fastq_prefix,
                 self.min_sv_size,
-                self.max_sv_size
+                self.max_sv_size,
+                self.nprocs,
             )
         ).merge_bp()
 
@@ -381,7 +389,8 @@ class SENSV:
                 self.fastq_file,
                 self.minimap2_bam_file,
                 self.merged_bed2_file,
-                action
+                action,
+                self.nprocs,
             )
         ).run()
 
@@ -412,7 +421,7 @@ class SENSV:
         ).run()
 
     def filter_depth_file(self):
-        filter_depth_file(self.gender, self.depth_file, self.depth_file_filtered)
+        filter_depth_file(self.gender, self.depth_file, self.depth_file_filtered, self.nprocs)
 
     @log(message="step ? (output final result)")
     def gen_final_result(self):
@@ -448,7 +457,8 @@ class SENSV:
                 self.final_bed2,
                 None,
                 self.min_sv_size,
-                self.max_sv_size
+                self.max_sv_size,
+                self.nprocs,
             )
         ).merge_bp()
 
@@ -486,6 +496,8 @@ if __name__ == "__main__":
 
     parser.add_argument('-ref_ver', '--ref_ver', help="reference version (default 37)", required=False, type=str, default="37")
     parser.add_argument('-ref', '--ref', help="reference fasta file absolute path", required=True, type=str)
+
+    parser.add_argument('-nprocs', '--nprocs', help="max # of processes to run sensv", required=False, type=int, default=48)
 
     init_logger()
 

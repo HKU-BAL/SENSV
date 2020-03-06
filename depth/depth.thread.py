@@ -19,11 +19,13 @@ logger.addHandler(ch)
 
 def getDepth(chr, window, bam, output):
     logger.info("Calculating mean depth of chr%s" % (chr))
-    os.system(
-        #config["DEFAULT"]["SamtoolsPath"] + "samtools depth -ar %s %s | python fastmeandepthcnt.py - %s > %s" % (
-        #config["DEFAULT"]["SamtoolsPath"] + "samtools depth -ar %s %s | pypy fastmeandepthcnt.py - %s > %s" % (
-        config["common"]["samtools"] + " depth -ar %s %s | pypy fastmeandepthcnt.py - %s > %s" % (
-            chr, bam, window, output))
+
+    samtools = config["common"]["samtools"]
+    cmd = (
+        f'{samtools} depth -ar {chr} {bam} | '
+        f'pypy3 fastmeandepthcnt.py - {window} > {output}'
+    )
+    os.system(cmd)
     logger.info("Done calculating mean depth for chr%s" % (chr))
 
 

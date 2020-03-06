@@ -28,13 +28,14 @@ It also generates supporting information (if any) of the candidates
 
 
 class AltrefOptions:
-    def __init__(self, name, output_prefix, fastq, orig_bam, input_bed2, action):
+    def __init__(self, name, output_prefix, fastq, orig_bam, input_bed2, action, nprocs):
         self.name = name
         self.output_prefix = output_prefix
         self.fastq = fastq
         self.orig_bam = orig_bam
         self.input_bed2 = input_bed2
         self.action = action
+        self.nprocs = nprocs
 
 
 class Altref:
@@ -51,6 +52,7 @@ class Altref:
         self.orig_bam = options.orig_bam
         self.input_bed2 = options.input_bed2
         self.action = options.action
+        self.nprocs = options.nprocs
 
         output_prefix = options.output_prefix
         self.name = options.name
@@ -69,8 +71,6 @@ class Altref:
 
     def load_config(self):
         config = {
-            'pool_size': int(get_var('altref', 'pool_size')),
-
             'buf_size': int(get_var('altref', 'buf_size')),
             'ref_buf_size': int(get_var('altref', 'ref_buf_size')),
             'min_mapq': int(get_var('altref', 'min_mapq')),
@@ -565,9 +565,7 @@ class Altref:
 
     # generate results
     def gen_result(self):
-        pool_size = self.config['pool_size']
-
-        pool = Pool(pool_size)
+        pool = Pool(processes=self.nprocs)
         results = pool.map(self, self.sv_str_list)
         pool.close()
         pool.join()
@@ -863,7 +861,7 @@ class Altref:
         run_shell_cmd(cmd)
 
         # gen fastq
-        cmd = f'python {bam2fasta} -input_bam {temp_bam} -input_fastq {self.fastq} -output_fasta {self.filtered_read_fasta}'
+        cmd = f'python {bam2fasta} -input_bam {temp_bam} -input_fastq {self.fastq} -output_fasta {self.filtered_read_fasta} -nprocs {self.nprocs}'
         if self.is_log_command:
             print(f'cmd: #{cmd}#')
         run_shell_cmd(cmd)

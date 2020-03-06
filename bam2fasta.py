@@ -10,6 +10,7 @@ class Bam2Fasta:
         self.input_bam = options.input_bam
         self.input_fastq = options.input_fastq
         self.output_fasta = options.output_fasta
+        self.nprocs = options.nprocs
 
     def __call__(self, read_name):
         read_seq = get_seq_from_fastq(read_name, self.input_fastq, '')
@@ -41,8 +42,7 @@ class Bam2Fasta:
             if not self.read_info[read_name]:
                 missing_seq[read_name] = ''
 
-        pool_size = 100
-        pool = Pool(pool_size)
+        pool = Pool(processes=self.nprocs)
         results = pool.map(self, missing_seq.keys())
         pool.close()
         pool.join()
@@ -69,5 +69,6 @@ if __name__ == "__main__":
     parser.add_argument('-input_bam', '--input_bam', help='in bam', required=True)
     parser.add_argument('-input_fastq', '--input_fastq', help='in fastq', required=True)
     parser.add_argument('-output_fasta', '--output_fasta', help='out fasta', required=True)
+    parser.add_argument('-nprocs', '--nprocs', help="max # of processes to run", required=False, type=int, default=48)
 
     Bam2Fasta(parser.parse_args()).run()

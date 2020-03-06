@@ -507,7 +507,7 @@ def get_normal_avg_depth(sv_str):
         return 0
 
 
-def filter_depth_file(gender, orig_depth_file, new_depth_file):
+def filter_depth_file(gender, orig_depth_file, new_depth_file, nprocs):
     # load depth file
     depth_regions = []
 
@@ -526,7 +526,7 @@ def filter_depth_file(gender, orig_depth_file, new_depth_file):
             sv_str = '%s_%d_%d_%d_%s' % (chrom, start, end, score, region_type)
             sv_str_list.append(sv_str)
 
-    pool = Pool(100)
+    pool = Pool(processes=nprocs)
     results = pool.map(get_normal_avg_depth, sv_str_list)
     pool.close()
     pool.join()
