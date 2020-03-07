@@ -38,7 +38,9 @@ class SENSV:
         self.load_config()
         self.nprocs = options.nprocs
 
-        output_prefix = options.output_prefix
+        output_prefix = Path(options.output_prefix).resolve()
+        output_prefix.mkdir(parents=True, exist_ok=True)
+        output_prefix = str(output_prefix)
         ref = self.config['ref']
 
         self.sample_name = options.sample_name
@@ -171,9 +173,8 @@ class SENSV:
     def gen_depth_file(self):
         is_absolute_path = self.output_prefix[0] == '/'
         io_directory = Path('' if is_absolute_path else os.getcwd())
-        base_dir = base_directory()
 
-        depth_path = base_dir / "depth"
+        depth_path = base_directory() / "depth"
         input_bam_file = io_directory / self.minimap2_bam_file
         input_ref_file = self.config['depth_ref']
         gender = self.gender

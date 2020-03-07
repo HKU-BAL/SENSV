@@ -1,39 +1,53 @@
-import sys
 import os
+import sys
+import shlex
 import argparse
 import subprocess
 import configparser
-
-config = configparser.ConfigParser()
-config.read("../config.ini")
+from pathlib import Path
 
 
 def main(args=None):
+    bam, reference, gender, output_path, nprocs = \
+        args.bam, args.reference, args.gender, args.output_path, args.nprocs
+
+    current_directory = Path(os.path.dirname(__file__)).resolve()
+    config_file_path = current_directory.parent / "config.ini"
+    config = configparser.ConfigParser()
+    config.read(config_file_path)
+
+    name = Path(bam).stem
+
+    cmd = f'python depth.thread.py {bam} {output_path}'
+    # print(f'cmd: #{cmd}#')
+    os.system(cmd)
+
+    cmd = (
+        f'python normalize_sample_mask_somatic_norm_separately.py '
+        f'{Path(output_path) / f"chr_depth_{name}_all.csv"} '
+        f'{config["depth"]["mask_table"]}'
+    )
+    # print(f'cmd: #{cmd}#')
+    process = subprocess.Popen(shlex.split(cmd))
+    process.communicate()
+
+    cmd = (
+        f'python revised_with_input_thread.py '
+        f'{Path(output_path) / f"chr_depth_{name}_all_mask_somatic_norm.csv"} '
+        f'{reference} {gender} {output_path} {nprocs}'
+    )
+    # print(f'cmd: #{cmd}#')
+    process = subprocess.Popen(shlex.split(cmd))
+    process.communicate()
+
+
+if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='get depth and normalize bam.')
     parser.add_argument('bam', nargs='?', help='input bam file.')
     parser.add_argument('reference', nargs='?', help='input ref file.')
     parser.add_argument('gender', nargs='?', help='m: male, f:female.')
     parser.add_argument('output_path', nargs='?', help='output path.')
     parser.add_argument('nprocs', nargs='?', help='max # of processes to run.')
-
     args = parser.parse_args()
-    os.chdir(sys.path[0])
-    name = os.path.basename(args.bam).rsplit(".",1)[0]
-    os.system("python depth.thread.py %s %s" % (args.bam, args.output_path))
-    all_chr = subprocess.Popen("python normalize_sample_mask_somatic_norm_separately.py %s %s" % (
-    os.path.join(args.output_path, "chr_depth_" + name + "_all.csv"), config["depth"]["mask_table"]), shell=True)
-    all_chr.communicate()
-    all_chr = subprocess.Popen(
-        "python revised_with_input_thread.py %s %s %s %s %s" % (
-            os.path.join(args.output_path, "chr_depth_" + name + "_all_mask_somatic_norm.csv"),
-            args.reference,
-            args.gender,
-            args.output_path,
-            args.nprocs,
-        ),
-        shell=True
-    )
-    all_chr.communicate()
 
-if __name__ == "__main__":
-    main()
+    main(args)
