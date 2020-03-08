@@ -14,10 +14,6 @@ from utility import (
     get_compact_cigar_string,
 )
 
-"""
-class SplitReadSv finds SV candidates of all chromosome based on the cigar string and split reads.
-"""
-
 
 class SplitReadCallerOptions:
     def __init__(self, bam_file, chrom_list, min_sv_size, max_sv_size, target_sv_type, out_bed2, depth_bed2, term_threshold, lt_10k_bed2, fai_file, nprocs):
@@ -35,6 +31,10 @@ class SplitReadCallerOptions:
 
 
 class SplitReadCaller:
+    """
+    class SplitReadCaller finds SV candidates of all chromosome based on the cigar string and split reads.
+    """
+
     def __init__(self, options):
         self.load_config()
 

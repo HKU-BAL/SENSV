@@ -12,9 +12,6 @@ from utility import (
     base_directory,
 )
 
-"""class DP is used for executing DP. It first generates ref. seq. based on
-    the target SV candidates, and then executes external DP executables
-"""
 
 class DpOptions:
     def __init__(self, sv_str, query_name, query_strand, fastq_prefix, gap_buf_size=None, query_seq=None):
@@ -30,6 +27,10 @@ class DpOptions:
 
 
 class DP:
+    """
+    class DP is used for executing DP. It first generates ref. seq. based on
+    the target SV candidates, and then executes external DP executables
+    """
     def __init__(self, options):
         self.load_config()
 

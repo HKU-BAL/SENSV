@@ -14,10 +14,6 @@ from utility import (
     init_logger,
 )
 
-"""
-class ChainCaller finds target SV regions based on chain info.
-"""
-
 
 class ChainCallerOptions:
     def __init__(self, depth_file, chain_file, fastq_file, bam_file, output_prefix, min_sv_size_by_depth, disable_dp_filter, gender, nprocs):
@@ -33,6 +29,9 @@ class ChainCallerOptions:
 
 
 class ChainCaller:
+    """
+    class ChainCaller finds target SV regions based on chain info.
+    """
 
     def __init__(self, options):
         self.load_config()
@@ -249,11 +248,10 @@ class ChainCaller:
                                     # chain1['query_start'] < chain2['query_start'] and
                                     # chain1['query_end'] <= chain2['query_end'] and
                                     chain1['query_end'] < chain2['query_end'] and
-
                                     chain1['query_start'] < 150 and
                                     chain2['seq_len'] - chain2['query_end'] < 300 and
-
-                                        chain1['query_end'] + 500 >= chain2['query_start']):
+                                    chain1['query_end'] + 500 >= chain2['query_start']
+                                ):
 
                                     #print('chain1', chain1)
                                     #print('chain2', chain2)
@@ -261,8 +259,9 @@ class ChainCaller:
                                     need_dp = 1
                             elif region_type == 'DUP':
                                 if options.disable_dp_filter or (
-                                        chain2['query_start'] <= chain1['query_start'] and
-                                        chain2['query_end'] < chain1['query_end']):
+                                    chain2['query_start'] <= chain1['query_start'] and
+                                    chain2['query_end'] < chain1['query_end']
+                                ):
                                     need_dp = 1
                             elif region_type == 'INV':
                                 # Todo: add checking
