@@ -118,7 +118,7 @@ class DP:
 
         cmd = str(base_directory() / self.dp_exe)
         stdin_input = '%s %s' % (self.options.query_seq, self.ref_seq)
-        output = run_shell_cmd(cmd, stdin_input)
+        output = run_shell_cmd(cmd, stdin_input=stdin_input)
 
         arr = [int(s) for s in output.split()]
 

@@ -21,10 +21,12 @@ from utility import (
     base_directory,
 )
 
-"""
-class Altref generates contigs of alt. ref for each of the SV candidates.
-It also generates supporting information (if any) of the candidates
-"""
+
+def run_cmd(cmd, stdin_input=None, is_log_cmd=False):
+    if is_log_cmd:
+        import logging
+        logging.info(f'cmd: #{cmd}#')
+    run_shell_cmd(cmd, stdin_input)
 
 
 class AltrefOptions:
@@ -39,6 +41,11 @@ class AltrefOptions:
 
 
 class Altref:
+    """
+    class Altref generates contigs of alt. ref for each of the SV candidates.
+    It also generates supporting information (if any) of the candidates
+    """
+
     def __init__(self, options):
         self.load_config()
 
@@ -65,7 +72,7 @@ class Altref:
         self.out_filtered_bed2 = f'{output_prefix}_filtered.bed2'
         self.filtered_read_fasta = f'{output_prefix}_filtered.fasta'
 
-        self.is_log_command = False
+        self.is_log_cmd = False
 
         load_cytobands()
 
@@ -164,9 +171,7 @@ class Altref:
                         print(seq, file=out_file)
 
         cmd = f'cat {self.localref} {altref} > {out_ref}'
-        if self.is_log_command:
-            print(f'cmd: #{cmd}#')
-        run_shell_cmd(cmd)
+        run_cmd(cmd, is_log_cmd=self.is_log_cmd)
 
     # genrate sequence of alt. ref.
     # format of sv_str: '1_start_1_end_type'
@@ -375,14 +380,13 @@ class Altref:
             out_ref = self.out_ref
 
         cmd = f'cat {ref} {altref} > {out_ref}'
-        if self.is_log_command:
-            print(f'cmd: #{cmd}#')
-        run_shell_cmd(cmd)
+        run_cmd(cmd, is_log_cmd=self.is_log_cmd)
 
     # alignment
     def align(self, sv_str=None):
         minimap2 = self.config['minimap2']
         samtools = self.config['samtools']
+        nprocs = self.nprocs
 
         if sv_str:
             out_ref = f'{self.altref}_{sv_str}.fa'
@@ -394,15 +398,13 @@ class Altref:
             out_bam = self.out_bam
 
         ref_size = math.ceil(1. * path.getsize(out_ref) / 1024 / 1024 / 1024 + .5)
-        if ref_size > 4:
-            cmd = "%s -Y -I %dG -t 48 --MD -a %s %s | %s sort -@ 48 -o %s - && %s index -@ 48 %s" % \
-                (minimap2, ref_size, out_ref, fastq, samtools, out_bam, samtools, out_bam)
-        else:
-            cmd = "%s -Y -t 48 --MD -a %s %s | %s sort -@ 48 -o %s - && %s index -@ 48 %s" % \
-                (minimap2, out_ref, fastq, samtools, out_bam, samtools, out_bam)
-        if self.is_log_command:
-            print(f'cmd: #{cmd}#')
-        run_shell_cmd(cmd)
+        minimap2_option_split_index_for_every_N_bases = f'-I {ref_size}G' if ref_size > 4 else ''
+        cmd = (
+            f'{minimap2} -Y {minimap2_option_split_index_for_every_N_bases} -t {nprocs} --MD -a {out_ref} {fastq} | '
+            f'{samtools} sort -@ {nprocs} -o {out_bam} - && '
+            f'{samtools} index -@ {nprocs} {out_bam}'
+        )
+        run_cmd(cmd, is_log_cmd=self.is_log_cmd)
 
     def get_mapq(self, sv_str, read_list):
         mapq = defaultdict(dict)
@@ -837,6 +839,7 @@ class Altref:
     def gen_filtered_read_fasta(self):
         search_size = self.config['search_size']
         samtools = self.config['samtools']
+        nprocs = self.nprocs
 
         # gen bed from bed2
         bed = f'{self.output_prefix}.bed'
@@ -847,24 +850,18 @@ class Altref:
         bam2fasta = base_dir / 'bam2fasta.py'
 
         cmd = f'python {bed2tobed} -in_bed2 {self.input_bed2} -out_bed {bed} -search_size {search_size}'
-        if self.is_log_command:
-            print(f'cmd: #{cmd}#')
-        run_shell_cmd(cmd)
+        run_cmd(cmd, is_log_cmd=self.is_log_cmd)
 
         # gen temp bam
         cmd = (
-            f'{samtools} view -@ 48 -L {bed} {self.orig_bam} -b -M > {temp_bam} && '
-            f'{samtools} index -@ 48 {temp_bam}'
+            f'{samtools} view -@ {nprocs} -L {bed} {self.orig_bam} -b -M > {temp_bam} && '
+            f'{samtools} index -@ {nprocs} {temp_bam}'
         )
-        if self.is_log_command:
-            print(f'cmd: #{cmd}#')
-        run_shell_cmd(cmd)
+        run_cmd(cmd, is_log_cmd=self.is_log_cmd)
 
         # gen fastq
         cmd = f'python {bam2fasta} -input_bam {temp_bam} -input_fastq {self.fastq} -output_fasta {self.filtered_read_fasta} -nprocs {self.nprocs}'
-        if self.is_log_command:
-            print(f'cmd: #{cmd}#')
-        run_shell_cmd(cmd)
+        run_cmd(cmd, is_log_cmd=self.is_log_cmd)
 
     def run(self):
         if self.input_bed2:

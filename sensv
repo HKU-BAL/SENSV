@@ -16,6 +16,7 @@ from utility import (
     base_directory,
     set_var,
     optional_string_to_optional_int,
+    exit_on_not_found,
 )
 
 from split_read_caller import SplitReadCallerOptions, SplitReadCaller
@@ -32,27 +33,38 @@ class SENSV is the integration class for all the steps of SV calling
 
 class SENSV:
     def __init__(self, options):
-        # init config
-        set_var("common", "ref_ver", options.ref_ver)
-        set_var("common", f'ref_{options.ref_ver}', options.ref)
-        self.load_config()
-        self.nprocs = options.nprocs
+        ref_ver = options.ref_ver
+        ref = options.ref
+        nprocs = options.nprocs
+        output_prefix = options.output_prefix
+        sample_name = options.sample_name
+        fastq_file = options.fastq_file
+        min_sv_size = options.min_sv_size
+        max_sv_size = options.max_sv_size
+        disable_dp_filter = options.disable_dp_filter
+        disable_gen_altref_bam = options.disable_gen_altref_bam
+        target_sv_type = options.target_sv_type
 
-        output_prefix = Path(options.output_prefix).resolve()
+        # init config
+        set_var("common", "ref_ver", ref_ver)
+        set_var("common", f'ref_{ref_ver}', ref)
+        self.load_config()
+        self.nprocs = nprocs
+
+        output_prefix = Path(output_prefix).resolve()
         output_prefix.mkdir(parents=True, exist_ok=True)
         output_prefix = str(output_prefix)
-        ref = self.config['ref']
 
-        self.sample_name = options.sample_name
-        self.fastq_file_orig = options.fastq_file
+        self.sample_name = sample_name
+        self.fastq_file_orig = fastq_file
         self.output_prefix = output_prefix
 
         default_min_sv_size = self.config['default_min_sv_size']
         default_min_sv_size_by_depth = self.config['default_min_sv_size_by_depth']
         default_max_sv_size = self.config['default_max_sv_size']
-        self.min_sv_size = options.min_sv_size if options.min_sv_size is not None else default_min_sv_size
+        self.min_sv_size = min_sv_size if min_sv_size is not None else default_min_sv_size
         self.min_sv_size_by_depth = default_min_sv_size_by_depth
-        self.max_sv_size = options.max_sv_size if options.max_sv_size is not None else default_max_sv_size
+        self.max_sv_size = max_sv_size if max_sv_size is not None else default_max_sv_size
 
         self.fastq_file = f'{output_prefix}.fastq.gz'
         self.fastq_prefix = output_prefix
@@ -75,16 +87,10 @@ class SENSV:
 
         self.term_bed2_file = f'{output_prefix}.term.bed2'
 
-        # make working dir
-        outputPath = os.path.dirname(self.output_prefix)
-        try:
-            os.makedirs(outputPath)
-        except:
-            pass
+        self.disable_dp_filter = disable_dp_filter
+        self.disable_gen_altref_bam = disable_gen_altref_bam
+        self.target_sv_type = target_sv_type.split(',') if target_sv_type else 'DUP,DEL'
 
-        self.disable_dp_filter = options.disable_dp_filter
-        self.disable_gen_altref_bam = options.disable_gen_altref_bam
-        self.target_sv_type = options.target_sv_type.split(',') if options.target_sv_type else 'DUP,DEL'
         self._gender = None
 
         # less than 10k bed2
@@ -128,31 +134,6 @@ class SENSV:
         import pprint
         pprint.pprint(self.config)
 
-    @log(message="step 0 (convert fastq.gz to bgzip and index it)")
-    def index_fastq(self):
-        FASTQ_INDEX_SCRIPT = f'{base_directory() / "index_fastq.sh"}'
-        cmd = f'{FASTQ_INDEX_SCRIPT} {self.fastq_file_orig} {self.output_prefix} {self.nprocs}'
-        logging.info(f'cmd: #{cmd}#')
-        run_shell_cmd(cmd)
-
-    @log(message="step 1 (generate bam and chain files)")
-    def gen_bam_and_chain_file(self):
-        my_minimap2 = base_directory() / self.config['my_minimap2']
-        samtools = self.config['samtools']
-        ref = self.config['ref']
-
-        minimap2_opt1 = f'-Y -t 48 -z 200 --MD -a {ref} {self.fastq_file}'
-        minimap2_opt2 = f'-5 {self.chain_file}'
-
-        cmd = (
-            f'{my_minimap2} {minimap2_opt1} {minimap2_opt2} | '
-            f'{samtools} sort -@ 48 -o {self.minimap2_bam_file} - && '
-            f'{samtools} index -@ 48 {self.minimap2_bam_file}'
-        )
-        logging.info(f'cmd: #{cmd}#')
-
-        run_shell_cmd(cmd)
-
     @property
     def gender(self):
         if self._gender is not None:
@@ -169,17 +150,51 @@ class SENSV:
         self._gender = 'f' if X_count / (Y_count + 0.001) > 100 else 'm'
         return self._gender
 
-    @log(message="step 2 (generate depth file)")
-    def gen_depth_file(self):
-        is_absolute_path = self.output_prefix[0] == '/'
-        io_directory = Path('' if is_absolute_path else os.getcwd())
+    @log(message="step 0 (convert fastq.gz to bgzip and index it)")
+    def index_fastq(self):
+        exit_on_not_found(self.fastq_file_orig, message=f'Input fastq file not found ({self.fastq_file_orig})')
 
+        FASTQ_INDEX_SCRIPT = f'{base_directory() / "index_fastq.sh"}'
+        cmd = f'{FASTQ_INDEX_SCRIPT} {self.fastq_file_orig} {self.output_prefix} {self.nprocs}'
+        logging.info(f'cmd: #{cmd}#')
+        run_shell_cmd(cmd)
+
+    @log(message="step 1 (generate bam and chain files)")
+    def gen_bam_and_chain_file(self):
+        my_minimap2 = base_directory() / self.config['my_minimap2']
+        samtools = self.config['samtools']
+        ref = self.config['ref']
+        nprocs = self.nprocs
+
+        exit_on_not_found(ref, message=f'Input reference file not found ({ref})')
+        exit_on_not_found(ref + ".fai", message=f'Input reference file not indexed. ({ref + ".fai"}')
+        exit_on_not_found(self.fastq_file, message=f'Input fastq file not found ({self.fastq_file})')
+
+        minimap2_opt1 = f'-Y -t {nprocs} -z 200 --MD -a {ref} {self.fastq_file}'
+        minimap2_opt2 = f'-5 {self.chain_file}'
+
+        cmd = (
+            f'{my_minimap2} {minimap2_opt1} {minimap2_opt2} | '
+            f'{samtools} sort -@ {nprocs} -o {self.minimap2_bam_file} - && '
+            f'{samtools} index -@ {nprocs} {self.minimap2_bam_file}'
+        )
+        logging.info(f'cmd: #{cmd}#')
+
+        run_shell_cmd(cmd)
+
+    @log(message="step 2.1 (generate depth file)")
+    def gen_depth_file(self):
         depth_path = base_directory() / "depth"
-        input_bam_file = io_directory / self.minimap2_bam_file
+        input_bam_file = self.minimap2_bam_file
         input_ref_file = self.config['depth_ref']
         gender = self.gender
-        output_path = io_directory / self.output_prefix
+        output_path = self.output_prefix
         nprocs = self.nprocs
+        input_ref_absolute_path = str(depth_path / input_ref_file)
+
+        exit_on_not_found(input_bam_file, message="Missing input bam file.")
+        exit_on_not_found(input_bam_file + ".bai", message="Missing input bam index file.")
+        exit_on_not_found(input_ref_absolute_path, message=f'depth ref file not found ({input_ref_absolute_path})')
 
         cmd = (
             f'cd {depth_path} && '
@@ -189,11 +204,22 @@ class SENSV:
 
         run_shell_cmd(cmd)
 
+    @log(message="step 2.2 (filter depth file)")
+    def filter_depth_file(self):
+        exit_on_not_found(self.depth_file, message=f'Depth file not found ({self.depth_file})')
+
+        filter_depth_file(self.gender, self.depth_file, self.depth_file_filtered, self.nprocs)
+
     @log(message="step 3 (find breakpoint from CIGAR and split reads)")
     def find_bp_by_cigar_str_and_split_read(self):
         term_threshold = 300000
         chromosome_list = self.config['chrom_list']
 
+        exit_on_not_found(self.minimap2_bam_file, message=f'Input bam file not found ({self.minimap2_bam_file})')
+        exit_on_not_found(self.depth_file_filtered, message=f'Filtered depth file not found ({self.depth_file_filtered})')
+        exit_on_not_found(self.fai_file, message=f'Reference file not indexed ({self.fai_file})')
+
+        # self.bed2_file and self.lt_10k_bed2 are output file paths
         SplitReadCaller(
             SplitReadCallerOptions(
                 self.minimap2_bam_file,
@@ -214,6 +240,9 @@ class SENSV:
     def filter_by_depth_and_sv_size(self):
         min_sv_size_for_depth = int(get_var('depth', 'min_sv_size_for_depth'))
         max_deviate_size = int(get_var('depth', 'max_deviate_size'))
+
+        exit_on_not_found(self.depth_file_filtered, message=f'Filtered depth file not found ({self.depth_file_filtered})')
+        exit_on_not_found(self.bed2_file, message=f'Bed2 file not found ({self.bed2_file})')
 
         depth_region = []
         with open(self.depth_file_filtered) as f:
@@ -284,10 +313,11 @@ class SENSV:
     def refine_bp_by_dp(self):
         tmp_bed2 = f'{self.split_bed2_file}_tmp'
 
+        exit_on_not_found(self.bed2_file, message=f'Bed2 file not found ({self.bed2_file})')
         BpTools(
             BpToolsOptions(
                 self.bed2_file,
-                tmp_bed2,
+                tmp_bed2, # output
                 self.fastq_prefix,
                 self.min_sv_size,
                 self.max_sv_size,
@@ -295,10 +325,11 @@ class SENSV:
             )
         ).refine_bp()
 
+        exit_on_not_found(tmp_bed2, message=f'Tmp bed2 file not found ({tmp_bed2})')
         BpTools(
             BpToolsOptions(
                 tmp_bed2,
-                self.split_bed2_file,
+                self.split_bed2_file, # output
                 self.fastq_prefix,
                 self.min_sv_size,
                 self.max_sv_size,
@@ -308,11 +339,15 @@ class SENSV:
 
     @log(message="step 6 (validate breakpoint by local realign)")
     def validate_bp_by_local_realign(self):
+        exit_on_not_found(self.split_bed2_file, message=f'Split bed2 file not found ({self.split_bed2_file})')
+        exit_on_not_found(self.fastq_file, message=f'Fastq file not found ({self.fastq_file})')
+        exit_on_not_found(self.minimap2_bam_file, message=f'Bam file not found ({self.minimap2_bam_file})')
+
         action = 'local_validate'
         Altref(
             AltrefOptions(
                 self.sample_name,
-                self.split_bed2_file,
+                self.split_bed2_file, # output prefixed with "split"
                 self.fastq_file,
                 self.minimap2_bam_file,
                 self.split_bed2_file,
@@ -321,12 +356,19 @@ class SENSV:
             )
         ).run()
 
-        cmd = f'mv {self.split_bed2_file}_filtered.bed2 {self.validate_bed2_file}'
+        filtered_split_bed2_file = f'{self.split_bed2_file}_filtered.bed2'
+        exit_on_not_found(filtered_split_bed2_file, message=f'File not found ({filtered_split_bed2_file})')
+        cmd = f'mv {filtered_split_bed2_file} {self.validate_bed2_file}'
         # logging.info(f"cmd: #{cmd}#")
         run_shell_cmd(cmd)
 
     @log(message="step 7 (find breakpoint from chain and dp)")
     def find_bp_by_chain_and_dp(self):
+        exit_on_not_found(self.depth_file_filtered, message=f'Filtered depth file not found ({self.depth_file_filtered})')
+        exit_on_not_found(self.chain_file, message=f'Chain file not found ({self.chain_file})')
+        exit_on_not_found(self.fastq_file, message=f'Fastq file not found ({self.fastq_file})')
+        exit_on_not_found(self.minimap2_bam_file, message=f'Bam file not found ({self.minimap2_bam_file})')
+
         ChainCaller(
             ChainCallerOptions(
                 self.depth_file_filtered,
@@ -343,9 +385,13 @@ class SENSV:
 
     @log(message="step 8 (cluster and merge cigarRead in bed2_file)")
     def merge_bed2(self):
-        merged_bed2_file_tmp = '%s_tmp' % (self.merged_bed2_file)
+        exit_on_not_found(self.validate_bed2_file, message=f'validate bed2 file not found ({self.validate_bed2_file})')
+        exit_on_not_found(self.bed2_file, message=f'bed2 file not found ({self.bed2_file})')
+        exit_on_not_found(self.dp_bed2_file, message=f'dp_bed2_file file not found ({self.dp_bed2_file})')
 
+        merged_bed2_file_tmp = f'{self.merged_bed2_file}_tmp'
         shutil.copy2(self.validate_bed2_file, merged_bed2_file_tmp)
+
         with open(merged_bed2_file_tmp, 'a') as outfile:
             # read cigarRead and adhoc in bed2_file
             with open(self.bed2_file) as infile:
@@ -372,7 +418,7 @@ class SENSV:
         BpTools(
             BpToolsOptions(
                 merged_bed2_file_tmp,
-                self.merged_bed2_file,
+                self.merged_bed2_file, # output
                 self.fastq_prefix,
                 self.min_sv_size,
                 self.max_sv_size,
@@ -382,6 +428,10 @@ class SENSV:
 
     @log(message="step 9 (validate and generate stats by altref)")
     def validate_bp_by_altref(self):
+        exit_on_not_found(self.fastq_file, message=f'fastq file not found ({self.fastq_file})')
+        exit_on_not_found(self.minimap2_bam_file, message=f'bam file not found ({self.minimap2_bam_file})')
+        exit_on_not_found(self.merged_bed2_file, message=f'merged bed2 file not found ({self.merged_bed2_file})')
+
         action = 'all' if not self.disable_gen_altref_bam else None
         Altref(
             AltrefOptions(
@@ -397,12 +447,17 @@ class SENSV:
 
     @log(message="step ? (detect terminal SV)")
     def call_term_sv(self):
-        output_prefix = f'{os.path.dirname(self.output_prefix)}/term_sv_caller_temp/{self.sample_name}'
+        output_prefix = str(Path(self.output_prefix) / 'term_sv_caller_temp' / self.sample_name)
         term_threshold = 300000
         buf_size = 200000
         min_clip_size = 100
         term_seq_file_basepath = ''
         ref = self.config['ref']
+        nprocs = self.nprocs
+
+        exit_on_not_found(self.minimap2_bam_file, message=f'bam file not found ({self.minimap2_bam_file})')
+        exit_on_not_found(self.fastq_file, message=f'Fastq file not found ({self.fastq_file})')
+        exit_on_not_found(ref, message=f'reference file not found ({ref})')
 
         self.term_sv = TermSvCaller(
             TermSvCallerOptions(
@@ -416,17 +471,19 @@ class SENSV:
                 self.fastq_file,
                 term_seq_file_basepath,
                 ref,
-                self.term_bed2_file,
-                buf_size
+                self.term_bed2_file, #output
+                buf_size,
+                nprocs,
             )
         ).run()
 
-    def filter_depth_file(self):
-        filter_depth_file(self.gender, self.depth_file, self.depth_file_filtered, self.nprocs)
-
     @log(message="step ? (output final result)")
     def gen_final_result(self):
-        altref_result = '%s_altref_filtered.result' % (self.output_prefix)
+        altref_result = f'{self.output_prefix}_altref_filtered.result'
+
+        exit_on_not_found(altref_result, message=f'Alt ref result not found ({altref_result})')
+        exit_on_not_found(self.term_bed2_file, message=f'term bed2 file not found ({self.term_bed2_file})')
+
         shutil.copy2(altref_result, self.final_result)
 
         # merge term sv
@@ -451,6 +508,8 @@ class SENSV:
         cmd = f"cat {self.final_result} | tail -n +2 | cut -f1 | grep -v '^-' | sort -k1V | uniq | tr '_' '\t' > {final_bed2_tmp}"
         #print('cmd', cmd)
         run_shell_cmd(cmd)
+
+        exit_on_not_found(final_bed2_tmp, message=f'temp final result bed2 not found ({final_bed2_tmp})')
 
         BpTools(
             BpToolsOptions(
@@ -500,6 +559,13 @@ if __name__ == "__main__":
 
     parser.add_argument('-nprocs', '--nprocs', help="max # of processes to run sensv", required=False, type=int, default=48)
 
+    args = parser.parse_args()
+
+    # input validation
+    exit_on_not_found(args.ref, message=f'Input reference fasta file not found ({args.ref})')
+    exit_on_not_found(args.ref + ".fai", message=f'Reference fasta file not indexed. ({args.ref + ".fai"}')
+    exit_on_not_found(args.fastq_file, message=f'Input fastq file not found ({args.fastq_file})')
+
     init_logger()
 
-    SENSV(options=parser.parse_args()).run()
+    SENSV(args).run()

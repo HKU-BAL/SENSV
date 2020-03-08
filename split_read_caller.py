@@ -882,34 +882,6 @@ class SplitReadCaller:
             self.gen_bed2(results)
 
 
-def get_split_read_caller_options(options):
-    bam_file = options.bam_file
-    chrom_list = options.chrom_list
-    min_sv_size = options.min_sv_size
-    max_sv_size = options.max_sv_size
-    target_sv_type = options.target_sv_type
-    out_bed2 = options.out_bed2
-    depth_bed2 = options.depth_bed2
-    term_threshold = options.term_threshold
-    lt_10k_bed2 = options.lt_10k_bed2
-    fai_file = options.fai_file
-    nprocs = options.nprocs
-
-    return SplitReadCallerOptions(
-        bam_file,
-        chrom_list,
-        min_sv_size,
-        max_sv_size,
-        target_sv_type,
-        out_bed2,
-        depth_bed2,
-        term_threshold,
-        lt_10k_bed2,
-        fai_file,
-        nprocs,
-    )
-
-
 if __name__ == "__main__":
     parser = ArgumentParser(description='run')
     parser.add_argument('-bam', '--bam_file', help='bam file', required=True)
@@ -921,10 +893,23 @@ if __name__ == "__main__":
 
     parser.add_argument('-depth_bed2', '--depth_bed2', help='depth bed', required=False)
     parser.add_argument('-term_threshold', '--term_threshold', help='term threshold', required=False, type=int)
-    parser.add_argument('-lt_10k_bed2', '--lt_10k_bed2', help='less-than-10k bed2', required=True)
+    parser.add_argument('-lt_10k_bed2', '--lt_10k_bed2', help='output less-than-10k bed2', required=True)
     parser.add_argument('-fai_file', '--fai_file', help='ref. index file', required=True)
     parser.add_argument('-nprocs', '--nprocs', help="max # of processes to run", required=False, type=int, default=48)
 
+    options = parser.parse_args()
     SplitReadCaller(
-        get_split_read_caller_options(parser.parse_args())
+        options=SplitReadCallerOptions(
+            bam_file=options.bam_file,
+            chrom_list=options.chrom_list,
+            min_sv_size=options.min_sv_size,
+            max_sv_size=options.max_sv_size,
+            target_sv_type=options.target_sv_type,
+            out_bed2=options.out_bed2,
+            depth_bed2=options.depth_bed2,
+            term_threshold=options.term_threshold,
+            lt_10k_bed2=options.lt_10k_bed2,
+            fai_file=options.fai_file,
+            nprocs=options.nprocs,
+        )
     ).run()

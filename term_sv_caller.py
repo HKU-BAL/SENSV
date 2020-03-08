@@ -10,7 +10,22 @@ from utility import (
 )
 
 class TermSvCallerOptions:
-    def __init__(self, name, in_bam, depth_file, fai_file, output_prefix, term_threshold, min_clip_size, fastq, term_seq_file_basepath, ref, out_bed2_file, buf_size):
+    def __init__(
+        self,
+        name,
+        in_bam,
+        depth_file,
+        fai_file,
+        output_prefix,
+        term_threshold,
+        min_clip_size,
+        fastq,
+        term_seq_file_basepath,
+        ref,
+        out_bed2_file,
+        buf_size,
+        nprocs,
+    ):
         self.name = name
         self.in_bam = in_bam
         self.depth_file = depth_file
@@ -23,6 +38,7 @@ class TermSvCallerOptions:
         self.ref = ref
         self.out_bed2_file = out_bed2_file
         self.buf_size = buf_size
+        self.nprocs = nprocs
 
 
 class TermSvCaller:
@@ -148,17 +164,16 @@ class TermSvCaller:
     def align(self, region):
         minimap2 = get_var('common', 'minimap2')
         samtools = get_var('common', 'samtools')
+        nprocs = self.options.nprocs
 
         fasta = self.get_region_file_name(region, 'fasta')
         ref = self.get_region_file_name(region, 'ref')
         out_bam = self.get_region_file_name(region, 'bam')
 
-        # cmd = "%s -Y -t 48 -a %s %s | %s sort -@ 24 -o %s - && %s index -@ 24 %s &> %s.log" % \
-        #     (minimap2, ref, fasta, samtools, out_bam, samtools, out_bam, out_bam)
         cmd = (
-            f'{minimap2} -Y -t 48 -a {ref} {fasta} | '
-            f'{samtools} sort -@ 24 -o {out_bam} - && '
-            f'{samtools} index -@ 24 {out_bam} &> {out_bam}.log'
+            f'{minimap2} -Y -t {nprocs} -a {ref} {fasta} | '
+            f'{samtools} sort -@ {nprocs} -o {out_bam} - && '
+            f'{samtools} index -@ {nprocs} {out_bam} &> {out_bam}.log'
         )
 
         run_shell_cmd(cmd)
@@ -297,6 +312,7 @@ if __name__ == "__main__":
     parser.add_argument('-term_seq_file_basepath', '--term_seq_file_basepath', help='telomere seq file basepath', required=True)
     parser.add_argument('-ref', '--ref', help='ref', required=True)
     parser.add_argument('-buf_size', '--buf_size', help='buf size', required=True, type=int)
+    parser.add_argument('-nprocs', '--nprocs', help="max # of processes", required=False, type=int, default=48)
 
     options = parser.parse_args()
 
@@ -314,5 +330,6 @@ if __name__ == "__main__":
             options.ref,
             'term_sv_caller.bed2',
             options.buf_size,
+            options.nprocs,
         )
     ).run()

@@ -82,6 +82,17 @@ def set_var(group, var, value):
     config[group][var] = value
 
 
+def exit_on_not_found(file_path, message=None):
+    from pathlib import Path
+    if Path(file_path).is_file():
+        return
+
+    if message is not None:
+        import logging
+        logging.error(f'{message}. exit.')
+    exit(0)
+
+
 def base_directory():
     from pathlib import Path
     return Path(path.dirname(__file__))
