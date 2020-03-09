@@ -7,31 +7,34 @@ from pathlib import Path
 from argparse import ArgumentParser
 from os.path import dirname
 
-from utility import (
+from src.utility import (
     filter_depth_file,
     get_var,
     init_logger,
     log,
     run_shell_cmd,
     base_directory,
+    shell_scripts_directory,
+    modules_directory,
+    depth_scripts_directory,
+    depth_data_directory,
     set_var,
     optional_string_to_optional_int,
     exit_on_not_found,
 )
 
-from split_read_caller import SplitReadCallerOptions, SplitReadCaller
-from chain_caller import ChainCallerOptions, ChainCaller
-from altref import AltrefOptions, Altref
-from depth_info import DepthInfoOptions, DepthInfo
-from term_sv_caller import TermSvCallerOptions, TermSvCaller
-from bp_tools import BpToolsOptions, BpTools
-
-"""
-class SENSV is the integration class for all the steps of SV calling
-"""
+from src.split_read_caller import SplitReadCallerOptions, SplitReadCaller
+from src.chain_caller import ChainCallerOptions, ChainCaller
+from src.altref import AltrefOptions, Altref
+from src.depth_info import DepthInfoOptions, DepthInfo
+from src.term_sv_caller import TermSvCallerOptions, TermSvCaller
+from src.bp_tools import BpToolsOptions, BpTools
 
 
 class SENSV:
+    """
+    class SENSV is the integration class for all the steps of SV calling
+    """
     def __init__(self, options):
         ref_ver = options.ref_ver
         ref = options.ref
@@ -154,14 +157,14 @@ class SENSV:
     def index_fastq(self):
         exit_on_not_found(self.fastq_file_orig, message=f'Input fastq file not found ({self.fastq_file_orig})')
 
-        FASTQ_INDEX_SCRIPT = f'{base_directory() / "index_fastq.sh"}'
+        FASTQ_INDEX_SCRIPT = shell_scripts_directory() / 'index_fastq.sh'
         cmd = f'{FASTQ_INDEX_SCRIPT} {self.fastq_file_orig} {self.output_prefix} {self.nprocs}'
         logging.info(f'cmd: #{cmd}#')
         run_shell_cmd(cmd)
 
     @log(message="step 1 (generate bam and chain files)")
     def gen_bam_and_chain_file(self):
-        my_minimap2 = base_directory() / self.config['my_minimap2']
+        my_minimap2 = modules_directory() / self.config['my_minimap2']
         samtools = self.config['samtools']
         ref = self.config['ref']
         nprocs = self.nprocs
@@ -184,21 +187,20 @@ class SENSV:
 
     @log(message="step 2.1 (generate depth file)")
     def gen_depth_file(self):
-        depth_path = base_directory() / "depth"
+        depth_src_path = str(depth_scripts_directory())
         input_bam_file = self.minimap2_bam_file
-        input_ref_file = self.config['depth_ref']
+        input_ref_absolute_path = str(depth_data_directory() / self.config['depth_ref'])
         gender = self.gender
         output_path = self.output_prefix
         nprocs = self.nprocs
-        input_ref_absolute_path = str(depth_path / input_ref_file)
 
         exit_on_not_found(input_bam_file, message="Missing input bam file.")
         exit_on_not_found(input_bam_file + ".bai", message="Missing input bam index file.")
         exit_on_not_found(input_ref_absolute_path, message=f'depth ref file not found ({input_ref_absolute_path})')
 
         cmd = (
-            f'cd {depth_path} && '
-            f'python depth_normalize_gender_thread.py {input_bam_file} {input_ref_file} {gender} {output_path} {nprocs}'
+            f'cd {depth_src_path} && '
+            f'python depth_normalize_gender_thread.py {input_bam_file} {input_ref_absolute_path} {gender} {output_path} {nprocs}'
         )
         logging.info(f"cmd: #{cmd}#")
 
@@ -359,7 +361,7 @@ class SENSV:
         filtered_split_bed2_file = f'{self.split_bed2_file}_filtered.bed2'
         exit_on_not_found(filtered_split_bed2_file, message=f'File not found ({filtered_split_bed2_file})')
         cmd = f'mv {filtered_split_bed2_file} {self.validate_bed2_file}'
-        # logging.info(f"cmd: #{cmd}#")
+        logging.info(f"cmd: #{cmd}#")
         run_shell_cmd(cmd)
 
     @log(message="step 7 (find breakpoint from chain and dp)")
@@ -408,7 +410,7 @@ class SENSV:
                 outfile.write(infile.read())
 
             if os.path.getsize(self.lt_10k_bed2):
-                MERGE_SV_SCRIPT = f'{base_directory() / "merge_sv.sh"}'
+                MERGE_SV_SCRIPT = shell_scripts_directory() / 'merge_sv.sh'
                 cmd = f'{MERGE_SV_SCRIPT} {self.lt_10k_bed2} {self.lt_10k_merge_bed2}'
                 run_shell_cmd(cmd)
 

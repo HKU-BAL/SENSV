@@ -3,8 +3,8 @@ import csv
 from argparse import ArgumentParser
 from multiprocessing import Pool
 
-from dp import DpOptions, DP
-from utility import (
+from src.dp import DpOptions, DP
+from src.utility import (
     get_var,
     get_short_name,
     get_seq_from_fastq,

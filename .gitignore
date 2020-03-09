@@ -1,7 +1,7 @@
 *.pyc
 *.vscode
 *.o
-*/libminimap2.a
+libminimap2.a
 *.bak
-*/minimap2
-*/dp_stdin
+minimap2
+dp_stdin

@@ -1,7 +1,5 @@
 #!/bin/bash
 
-. config.sh
-
 usage() {
   echo "usage: $0 <read_name> <fastq>"
   exit 1
@@ -17,4 +15,4 @@ readname=$1
 fastq=$2
 
 num=`look -b ${readname} ${fastq}.idx|head -1l|cut -d' ' -f2`
-$GRABIX grab ${fastq} $num $((num+3))
+grabix grab ${fastq} $num $((num+3))

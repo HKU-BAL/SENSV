@@ -1,7 +1,7 @@
 from sys import exit
 from argparse import ArgumentParser
 
-from utility import (
+from src.utility import (
     get_var,
     get_ref,
     get_seq_from_fastq,
@@ -10,6 +10,7 @@ from utility import (
     rev_comp,
     run_shell_cmd,
     base_directory,
+    modules_directory,
 )
 
 
@@ -83,7 +84,7 @@ class DP:
         load_cytobands()
 
     def load_config(self):
-        self.dp_exe = get_var('dp', 'dp_exe')
+        self.dp_exe = modules_directory() / get_var('dp', 'dp_exe')
         self.gap_buf_size = int(get_var('dp', 'gap_buf_size'))
 
     def swap_value(self, list, a, b):

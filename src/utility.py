@@ -95,7 +95,31 @@ def exit_on_not_found(file_path, message=None):
 
 def base_directory():
     from pathlib import Path
-    return Path(path.dirname(__file__))
+    return Path(path.dirname(__file__)).parent
+
+
+def data_directory():
+    return base_directory() / 'data'
+
+
+def src_directory():
+    return base_directory() / 'src'
+
+
+def modules_directory():
+    return base_directory() / 'modules'
+
+
+def shell_scripts_directory():
+    return src_directory() / 'scripts'
+
+
+def depth_scripts_directory():
+    return src_directory() / 'depth'
+
+
+def depth_data_directory():
+    return data_directory() / 'depth'
 
 
 def load_config():
@@ -131,7 +155,7 @@ def get_seq_from_fastq(read_name, fastq_prefix, ext='.fastq.gz', return_all=Fals
     from sys import exit
     from glob import glob
 
-    GET_SEQ_FROM_FASTQ_SCRIPT = '%s/get_seq_by_name.sh' % path.dirname(path.realpath(__file__))
+    GET_SEQ_FROM_FASTQ_SCRIPT = shell_scripts_directory() / 'get_seq_by_name.sh'
 
     seq = ''
     for filename in glob(fastq_prefix + ext):
@@ -204,7 +228,7 @@ def run_shell_cmd(cmd, stdin_input=None):
 def load_cytobands():
     global cytobands
 
-    cytoband_file_path = base_directory() / 'data_file' / 'cytoband'
+    cytoband_file_path = data_directory() / 'cytoband' / 'cytoband'
 
     cytobands = defaultdict(list)
     with open(cytoband_file_path, 'r') as f:
@@ -480,7 +504,7 @@ def gen_altref_seq(sv_str, buf_size):
 
 
 def load_depth_list():
-    depth_list_path = base_directory() / 'depth' / 'depth_list'
+    depth_list_path = data_directory() / 'depth' / 'depth_list'
 
     l = defaultdict(list)
     with open(depth_list_path, 'r') as f:

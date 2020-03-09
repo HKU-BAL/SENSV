@@ -1,8 +1,8 @@
 from argparse import ArgumentParser
 from multiprocessing import Pool
 
-from dp import DpOptions, DP
-from utility import (
+from src.dp import DpOptions, DP
+from src.utility import (
     get_var,
     get_seq_from_fastq,
     get_sorted_sv_str_list,

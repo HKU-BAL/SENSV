@@ -4,7 +4,7 @@ import re
 from multiprocessing import Pool
 from argparse import ArgumentParser
 
-from utility import (
+from src.utility import (
     get_var,
     get_short_name,
     is_same_arm,

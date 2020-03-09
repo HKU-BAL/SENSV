@@ -35,8 +35,8 @@ def main(args=None):
     bam, output_path = args.bam, Path(args.output_path)
 
     # read config
-    current_directory = Path(os.path.dirname(__file__)).resolve()
-    config_file_path = current_directory.parent / "config.ini"
+    current_directory = Path(os.path.dirname(__file__)).resolve().parent.parent
+    config_file_path = current_directory / "config.ini"
     config = configparser.ConfigParser()
     config.read(config_file_path)
     samtools = config['common']['samtools']

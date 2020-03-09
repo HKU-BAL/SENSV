@@ -1,6 +1,6 @@
 from __future__ import print_function
 
-from utility import *
+from src.utility import *
 
 class FindSingleEndRead:
     cType = get_var('denovo_common','cType')

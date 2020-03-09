@@ -11,10 +11,13 @@ def main(args=None):
     bam, reference, gender, output_path, nprocs = \
         args.bam, args.reference, args.gender, args.output_path, args.nprocs
 
-    current_directory = Path(os.path.dirname(__file__)).resolve()
-    config_file_path = current_directory.parent / "config.ini"
+    # current directory = repo directory (SENSV folder)
+    current_directory = Path(os.path.dirname(__file__)).resolve().parent.parent
+    config_file_path = current_directory / 'config.ini'
     config = configparser.ConfigParser()
     config.read(config_file_path)
+
+    mask_table_absolute_path = str(current_directory / 'data' / 'depth' / config['depth']['mask_table'])
 
     name = Path(bam).stem
 
@@ -25,7 +28,7 @@ def main(args=None):
     cmd = (
         f'python normalize_sample_mask_somatic_norm_separately.py '
         f'{Path(output_path) / f"chr_depth_{name}_all.csv"} '
-        f'{config["depth"]["mask_table"]}'
+        f'{mask_table_absolute_path}'
     )
     # print(f'cmd: #{cmd}#')
     process = subprocess.Popen(shlex.split(cmd))

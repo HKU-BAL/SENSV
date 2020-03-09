@@ -2,7 +2,7 @@ import os
 import csv
 import pysam
 
-from utility import (
+from src.utility import (
     get_var,
     get_short_name,
     get_clip_seq,

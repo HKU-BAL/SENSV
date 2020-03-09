@@ -34,4 +34,4 @@ cat ${raw_bed2} | awk '{printf("%s\t%s\t%s\n",$1,$2,$4)}' > ${raw_bed}
 ${survivor} bedtovcf ${raw_bed} DEL ${raw_vcf}
 printf "${raw_vcf}\n${raw_vcf}\n" > ${merge_file}
 ${survivor} merge ${merge_file} ${max_dist_between_bp} ${min_supp} 1 1 0 ${min_sv_size} ${merge_vcf}
-python vcf2Bed2.py -v ${merge_vcf} > ${merge_bed2}
+python vcf_to_bed2.py -v ${merge_vcf} > ${merge_bed2}

@@ -6,7 +6,7 @@ from os import makedirs, path
 from multiprocessing import Pool
 from collections import defaultdict
 
-from utility import (
+from src.utility import (
     get_var,
     run_shell_cmd,
     get_ref,
@@ -18,7 +18,7 @@ from utility import (
     get_sorted_sv_str_list,
     get_seq_from_fastq,
     init_logger,
-    base_directory,
+    src_directory,
 )
 
 
@@ -845,11 +845,11 @@ class Altref:
         bed = f'{self.output_prefix}.bed'
         temp_bam = f'{self.output_prefix}_temp.bam'
 
-        base_dir = base_directory()
-        bed2tobed = base_dir / 'bed2tobed.py'
-        bam2fasta = base_dir / 'bam2fasta.py'
+        base_dir = src_directory()
+        bed2_to_bed = base_dir / 'bed2_to_bed.py'
+        bam_to_fasta = base_dir / 'bam_to_fasta.py'
 
-        cmd = f'python {bed2tobed} -in_bed2 {self.input_bed2} -out_bed {bed} -search_size {search_size}'
+        cmd = f'python {bed2_to_bed} -in_bed2 {self.input_bed2} -out_bed {bed} -search_size {search_size}'
         run_cmd(cmd, is_log_cmd=self.is_log_cmd)
 
         # gen temp bam
@@ -860,7 +860,7 @@ class Altref:
         run_cmd(cmd, is_log_cmd=self.is_log_cmd)
 
         # gen fastq
-        cmd = f'python {bam2fasta} -input_bam {temp_bam} -input_fastq {self.fastq} -output_fasta {self.filtered_read_fasta} -nprocs {self.nprocs}'
+        cmd = f'python {bam_to_fasta} -input_bam {temp_bam} -input_fastq {self.fastq} -output_fasta {self.filtered_read_fasta} -nprocs {self.nprocs}'
         run_cmd(cmd, is_log_cmd=self.is_log_cmd)
 
     def run(self):
