@@ -1,4 +1,5 @@
 from os import path
+from subprocess import Popen, PIPE
 from multiprocessing import Pool
 from collections import defaultdict
 
@@ -216,11 +217,9 @@ def get_compact_cigar_string(cigar_string, start_clip_count, end_clip_count):
     return cond_cigar_string
 
 
-def run_shell_cmd(cmd, stdin_input=None):
-    from subprocess import Popen, PIPE
-
-    p = Popen(cmd, shell=True, stdout=PIPE, stderr=PIPE, stdin=PIPE, universal_newlines=True)
-    out, _err = p.communicate(stdin_input) if stdin_input else p.communicate()
+def run_shell_cmd(cmd, input=None, shell=True, stdin=PIPE, stdout=PIPE, stderr=PIPE):
+    p = Popen(cmd, shell=shell, stdin=stdin, stdout=stdout, stderr=stderr, universal_newlines=True)
+    out, _err = p.communicate(input=input)
 
     return out
 

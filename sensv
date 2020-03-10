@@ -3,9 +3,11 @@ import os
 import shutil
 import csv
 import logging
+import shlex
 from pathlib import Path
 from argparse import ArgumentParser
 from os.path import dirname
+from sys import stdout, stderr
 
 from src.utility import (
     filter_depth_file,
@@ -14,6 +16,7 @@ from src.utility import (
     log,
     run_shell_cmd,
     base_directory,
+    src_directory,
     shell_scripts_directory,
     modules_directory,
     depth_scripts_directory,
@@ -22,7 +25,6 @@ from src.utility import (
     optional_string_to_optional_int,
     exit_on_not_found,
 )
-
 from src.split_read_caller import SplitReadCallerOptions, SplitReadCaller
 from src.chain_caller import ChainCallerOptions, ChainCaller
 from src.altref import AltrefOptions, Altref
@@ -105,6 +107,10 @@ class SENSV:
 
         self.final_result = f'{output_prefix}_final.result'
         self.final_bed2 = f'{output_prefix}_final.bed2'
+        self.vcf_from_final_bed2 = f'{output_prefix}_vcf_from_final_bed2.vcf'
+
+        self.tra_inv_vcf = f'{self.output_prefix}_tra_inv.vcf'
+        self.final_vcf = f'{self.output_prefix}_final.vcf'
 
         self.disable_depth_analysis = (
             self.max_sv_size and
@@ -160,7 +166,7 @@ class SENSV:
         FASTQ_INDEX_SCRIPT = shell_scripts_directory() / 'index_fastq.sh'
         cmd = f'{FASTQ_INDEX_SCRIPT} {self.fastq_file_orig} {self.output_prefix} {self.nprocs}'
         logging.info(f'cmd: #{cmd}#')
-        run_shell_cmd(cmd)
+        run_shell_cmd(cmd, stderr=stderr)
 
     @log(message="step 1 (generate bam and chain files)")
     def gen_bam_and_chain_file(self):
@@ -182,7 +188,6 @@ class SENSV:
             f'{samtools} index -@ {nprocs} {self.minimap2_bam_file}'
         )
         logging.info(f'cmd: #{cmd}#')
-
         run_shell_cmd(cmd)
 
     @log(message="step 2.1 (generate depth file)")
@@ -203,8 +208,7 @@ class SENSV:
             f'python depth_normalize_gender_thread.py {input_bam_file} {input_ref_absolute_path} {gender} {output_path} {nprocs}'
         )
         logging.info(f"cmd: #{cmd}#")
-
-        run_shell_cmd(cmd)
+        run_shell_cmd(cmd, stdout=stdout, stderr=stderr)
 
     @log(message="step 2.2 (filter depth file)")
     def filter_depth_file(self):
@@ -361,8 +365,8 @@ class SENSV:
         filtered_split_bed2_file = f'{self.split_bed2_file}_filtered.bed2'
         exit_on_not_found(filtered_split_bed2_file, message=f'File not found ({filtered_split_bed2_file})')
         cmd = f'mv {filtered_split_bed2_file} {self.validate_bed2_file}'
-        logging.info(f"cmd: #{cmd}#")
-        run_shell_cmd(cmd)
+        # logging.info(f"cmd: #{cmd}#")
+        run_shell_cmd(cmd, stderr=stderr)
 
     @log(message="step 7 (find breakpoint from chain and dp)")
     def find_bp_by_chain_and_dp(self):
@@ -479,8 +483,8 @@ class SENSV:
             )
         ).run()
 
-    @log(message="step ? (output final result)")
-    def gen_final_result(self):
+    @log(message="step ? (output bed2/vcf result)")
+    def output_bed2_result(self):
         altref_result = f'{self.output_prefix}_altref_filtered.result'
 
         exit_on_not_found(altref_result, message=f'Alt ref result not found ({altref_result})')
@@ -507,9 +511,12 @@ class SENSV:
                     writer.writerow(row)
 
         final_bed2_tmp = f'{self.final_bed2}_tmp'
-        cmd = f"cat {self.final_result} | tail -n +2 | cut -f1 | grep -v '^-' | sort -k1V | uniq | tr '_' '\t' > {final_bed2_tmp}"
-        #print('cmd', cmd)
-        run_shell_cmd(cmd)
+        cmd = (
+            f'cat {self.final_result} | '
+            f"tail -n +2 | cut -f1 | grep -v '^-' | sort -k1V | uniq | tr '_' '\t' > {final_bed2_tmp}"
+        )
+        # logging.info(f'cmd: #{cmd}#')
+        run_shell_cmd(cmd, stderr=stderr)
 
         exit_on_not_found(final_bed2_tmp, message=f'temp final result bed2 not found ({final_bed2_tmp})')
 
@@ -523,6 +530,35 @@ class SENSV:
                 self.nprocs,
             )
         ).merge_bp()
+
+        # bed2 to vcf
+        cmd = (
+            f'cat {self.final_result} | '
+            f'python {str(src_directory() / "bed2_to_vcf.py")} > {self.vcf_from_final_bed2}'
+        )
+        # logging.info(f'cmd: #{cmd}#')
+        run_shell_cmd(cmd, stdout=stdout, stderr=stderr)
+
+
+    @log(message='call TRA / INV')
+    def output_tra_inv(self):
+        cmd = (
+            f'python {str(src_directory() / "tra_inv" / "seeseesplitreads.py")} '
+            f'--bam {self.minimap2_bam_file} '
+            f'--ref {self.config["ref"]} '
+            f'--min_sv_size {self.min_sv_size} '
+            f'--output {self.tra_inv_vcf} '
+            f'--samtools {self.config["samtools"]} '
+            f'--processes {self.nprocs}'
+        )
+        # logging.info(f'cmd: #{cmd}#')
+        run_shell_cmd(cmd, stdout=stdout, stderr=stderr)
+
+    @log(message='output final result')
+    def output_final_result(self):
+        cmd = f'vcfcat {self.vcf_from_final_bed2} {self.tra_inv_vcf} > {self.final_vcf}'
+        # logging.info(f'cmd: #{cmd}#')
+        run_shell_cmd(cmd, stdout=stdout, stderr=stderr)
 
     def run(self):
         self.index_fastq()
@@ -539,7 +575,9 @@ class SENSV:
         self.call_term_sv()
         self.merge_bed2()
         self.validate_bp_by_altref()
-        self.gen_final_result()
+        self.output_bed2_result()
+        self.output_tra_inv()
+        self.output_final_result()
 
 
 if __name__ == "__main__":

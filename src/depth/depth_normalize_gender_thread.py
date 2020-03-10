@@ -31,7 +31,7 @@ def main(args=None):
         f'{mask_table_absolute_path}'
     )
     # print(f'cmd: #{cmd}#')
-    process = subprocess.Popen(shlex.split(cmd))
+    process = subprocess.Popen(shlex.split(cmd), stdout=sys.stdout, stderr=sys.stderr)
     process.communicate()
 
     cmd = (
@@ -40,7 +40,7 @@ def main(args=None):
         f'{reference} {gender} {output_path} {nprocs}'
     )
     # print(f'cmd: #{cmd}#')
-    process = subprocess.Popen(shlex.split(cmd))
+    process = subprocess.Popen(shlex.split(cmd), stdout=sys.stdout, stderr=sys.stderr)
     process.communicate()
 
 

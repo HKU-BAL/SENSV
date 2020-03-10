@@ -14,7 +14,7 @@ conda create -n sensv-env python=3.7
 conda activate sensv-env
 
 # install conda packages
-conda install minimap2=2.17 samtools=1.7 pigz=2.3.4 grabix=0.1.8 pypy3.6=7.3.0 survivor=1.0.6 pandas=1.0.1 scipy=1.4.1 pysam=0.15.3 htslib=1.10.2
+conda install minimap2=2.17 samtools=1.7 pigz=2.3.4 grabix=0.1.8 pypy3.6=7.3.0 survivor=1.0.6 pandas=1.0.1 scipy=1.4.1 pysam=0.15.3 htslib=1.10.2 intervaltree=3.0.2 vcflib=1.0.0
 
 # clone repo
 git clone https://github.com/HKU-BAL/SENSV.git

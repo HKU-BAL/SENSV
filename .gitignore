@@ -5,3 +5,4 @@ libminimap2.a
 *.bak
 minimap2
 dp_stdin
+modules/dpmodule/build
