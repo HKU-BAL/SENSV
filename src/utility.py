@@ -557,7 +557,7 @@ def filter_depth_file(gender, orig_depth_file, new_depth_file, nprocs):
             chrom, start, end, score, region_type = \
                 arr[0], int(float(arr[1])), int(float(arr[2])), int(float(arr[3])), arr[4]
 
-            sv_str = '%s_%d_%d_%d_%s' % (chrom, start, end, score, region_type)
+            sv_str = f'{chrom}_{start}_{end}_{score}_{region_type}'
             sv_str_list.append(sv_str)
 
     pool = Pool(processes=nprocs)
@@ -569,12 +569,12 @@ def filter_depth_file(gender, orig_depth_file, new_depth_file, nprocs):
         sv_str = result['sv_str']
         normal_avg_depth = result['normal_avg_depth']
 
-        is_skip = 0
+        is_skip = False
         if result['normal_avg_depth'] < 0.5:
-            is_skip = 1
-        elif gender == 'f' or chrom not in ['X', 'Y']:
-            if gender == 'f' and chrom == 'Y':
-                is_skip = 1
+            is_skip = True
+        elif gender == 'f' or chrom not in ["X", "Y"]:
+            if gender == 'f' and chrom == "Y":
+                is_skip = True
 
         if is_skip:
             print('gender = %s, normal avg depth = %f, depth region skipped: %s_%s_%s' %
