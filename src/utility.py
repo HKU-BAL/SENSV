@@ -85,7 +85,7 @@ def set_var(group, var, value):
 
 def exit_on_not_found(file_path, message=None):
     from pathlib import Path
-    if Path(file_path).is_file():
+    if file_path is not None and Path(file_path).is_file():
         return
 
     if message is not None:
