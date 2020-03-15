@@ -1,10 +1,11 @@
 import pysam
 import csv
 import math
-from sys import exit
+from subprocess import PIPE
 from os import makedirs, path
 from multiprocessing import Pool
 from collections import defaultdict
+from sys import exit, stdout, stderr
 
 from src.utility import (
     get_var,
@@ -22,11 +23,11 @@ from src.utility import (
 )
 
 
-def run_cmd(cmd, stdin_input=None, is_log_cmd=False):
+def run_cmd(cmd, stdin_input=None, is_log_cmd=False, stdout=PIPE, stderr=PIPE):
     if is_log_cmd:
         import logging
         logging.info(f'cmd: #{cmd}#')
-    run_shell_cmd(cmd, stdin_input)
+    run_shell_cmd(cmd, input=stdin_input, stdout=stdout, stderr=stderr)
 
 
 class AltrefOptions:
@@ -850,7 +851,7 @@ class Altref:
         bam_to_fasta = base_dir / 'bam_to_fasta.py'
 
         cmd = f'python {bed2_to_bed} -in_bed2 {self.input_bed2} -out_bed {bed} -search_size {search_size}'
-        run_cmd(cmd, is_log_cmd=self.is_log_cmd)
+        run_cmd(cmd, is_log_cmd=self.is_log_cmd, stdout=stdout, stderr=stderr)
 
         # gen temp bam
         cmd = (
@@ -861,7 +862,7 @@ class Altref:
 
         # gen fastq
         cmd = f'python {bam_to_fasta} -input_bam {temp_bam} -input_fastq {self.fastq} -output_fasta {self.filtered_read_fasta} -nprocs {self.nprocs}'
-        run_cmd(cmd, is_log_cmd=self.is_log_cmd)
+        run_cmd(cmd, is_log_cmd=self.is_log_cmd, stdout=stdout, stderr=stderr)
 
     def run(self):
         if self.input_bed2:
