@@ -11,7 +11,7 @@ class CigarString:
         self.cigar_tuples, self.query_length, self.ref_length = CigarString.parse(cigar)
 
     @classmethod
-    def parse(self, cigar):
+    def parse(cls, cigar):
         cigar_tuples = []
 
         count_query = 0

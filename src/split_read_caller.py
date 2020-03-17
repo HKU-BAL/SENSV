@@ -1,9 +1,9 @@
 import csv
-import pysam
 import re
 from multiprocessing import Pool
 from argparse import ArgumentParser
 
+import pysam
 from src.utility import (
     get_var,
     get_short_name,

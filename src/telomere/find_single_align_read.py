@@ -1,9 +1,12 @@
-from __future__ import print_function
-
-from src.utility import *
+import pysam
+from src.utility import (
+    get_var,
+    get_clip_seq,
+    get_seq_from_fastq,
+)
 
 class FindSingleEndRead:
-    cType = get_var('denovo_common','cType')
+    cType = get_var('denovo_common', 'cType')
 
     def __init__(self, options):
         self.bam = options.bam
@@ -23,18 +26,17 @@ class FindSingleEndRead:
             self.clip_side = 'end'
 
     def gen(self):
-        header = ['name','strand','clip_size','breakpoint','sa_str','clip_seq']
-        #header = ['name','strand','clip_size','breakpoint','clip_seq']
+        header = ['name', 'strand', 'clip_size', 'breakpoint', 'sa_str', 'clip_seq']
 
         fastq_read = {}
         bam = pysam.AlignmentFile(self.bam, 'rb')
 
         if self.out_fasta:
-           fout_fasta = open(self.out_fasta, 'w')
+            fout_fasta = open(self.out_fasta, 'w')
         if self.out_fastq:
-           fout_fastq = open(self.out_fastq, 'w')
+            fout_fastq = open(self.out_fastq, 'w')
         if self.out_txt:
-           fout_txt = open(self.out_txt, 'w')
+            fout_txt = open(self.out_txt, 'w')
 
         for read in bam.fetch(self.pos_chrom, self.pos_start, self.pos_end):
             if read.is_secondary:
@@ -43,17 +45,17 @@ class FindSingleEndRead:
             pos = read.reference_end if self.clip_side == 'end' else read.reference_start
 
             if self.pos_start <= pos <= self.pos_end:
-                tuples = read.cigartuples
+                # tuples = read.cigartuples
 
                 clip = get_clip_seq(read, self.fastq[:-9])
                 if clip[self.clip_side]['length'] > self.min_clip_size:
                     sa_str = read.get_tag("SA").strip(';') if read.has_tag('SA') else ''
                     strand = '+' if not read.is_reverse else '-'
-                    #clip_seq = clip[self.clip_side]['seq'] if self.clip_side == 'end' else clip[self.clip_side]['seq'][::-1]
+                    # clip_seq = clip[self.clip_side]['seq'] if self.clip_side == 'end' else clip[self.clip_side]['seq'][::-1]
                     clip_seq = clip[self.clip_side]['seq']
                     breakpoint = read.reference_end if self.clip_side == 'end' else read.reference_start
 
-                    #print(read.reference_start, read.reference_end, breakpoint, clip_seq[:200])
+                    # print(read.reference_start, read.reference_end, breakpoint, clip_seq[:200])
 
                     """
                     if sa_str:

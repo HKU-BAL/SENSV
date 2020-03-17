@@ -2,7 +2,7 @@ import shlex
 from os.path import isfile
 from sys import stderr
 from subprocess import PIPE, Popen, DEVNULL
-from statistics import median, mean
+from statistics import mean
 
 major_contigs = (
     ["chr" + str(a) for a in (list(range(1, 23)) + ["X", "Y"])] +
@@ -47,7 +47,7 @@ def get_reference_from_fasta(ref, chrom, left_pos, right_pos):
         for row in process.stdout:
             reads.append(row.strip())
 
-    return ("".join(reads[1:]))
+    return "".join(reads[1:])
 
 
 def depth_stat_from(bam, samtools, breakpoint, left_pos, right_pos):

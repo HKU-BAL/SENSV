@@ -1,7 +1,7 @@
-import pysam
 from argparse import ArgumentParser
 from multiprocessing import Pool
 
+import pysam
 from utility import get_seq_from_fastq
 
 

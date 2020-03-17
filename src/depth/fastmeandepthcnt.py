@@ -2,9 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from __future__ import division
-from __future__ import print_function
 import argparse
-import fileinput
 
 COLUMN_TYPES = [str, int, int] # chrom, position, depth
 

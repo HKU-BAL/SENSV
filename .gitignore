@@ -6,3 +6,4 @@ libminimap2.a
 minimap2
 dp_stdin
 modules/dpmodule/build
+data/

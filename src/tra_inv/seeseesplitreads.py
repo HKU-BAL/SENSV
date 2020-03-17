@@ -1,5 +1,4 @@
 import sys
-import os
 from multiprocessing import Pool
 from argparse import ArgumentParser
 from collections import defaultdict
@@ -216,11 +215,8 @@ def final_sv_candidates_from(sv_candidates, ref, bam, samtools, processes):
 
 
 def output(sv_list):
-    from pathlib import Path
-    repo_directory = Path(os.path.dirname(__file__)).parent.parent
-
     with open(args.output, 'w') as vcf:
-        header = open(repo_directory / 'data' / 'output' / 'header').read().splitlines()
+        header = open(args.header_file_path).read().splitlines()
         for line in header:
             print(line, file=vcf)
 
@@ -282,6 +278,7 @@ if __name__ == "__main__":
     parser.add_argument('--min_read_length', help='min read length for filtering (exclusive)',
                         required=False, type=int, default=0)
     parser.add_argument('--samtools', help='samtools executable', required=False, type=str, default='samtools')
+    parser.add_argument('--header_file_path', help='header file path', required=True, type=str, default='')
     parser.add_argument('--processes', help='# of processes', required=False, type=int, default=40)
 
     if len(sys.argv) == 1:

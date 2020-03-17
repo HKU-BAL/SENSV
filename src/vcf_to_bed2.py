@@ -60,10 +60,10 @@ if __name__ == "__main__":
             if options.ans and not result['ANS'] == options.ans:
                 continue
 
-            if 'END' in result and not 'SVEND' in result:
+            if 'END' in result and 'SVEND' not in result:
                 result['SVEND'] = result['END']
 
-            if not 'SVLEN' in result:
+            if 'SVLEN' not in result:
                 result['REMARK'] = str(int(result['SVEND']) - int(result['POS']))
             else:
                 result['REMARK'] = str(abs(int(result['SVLEN'])))

@@ -3,10 +3,8 @@ import os
 import shutil
 import csv
 import logging
-import shlex
 from pathlib import Path
 from argparse import ArgumentParser
-from os.path import dirname
 from sys import stdout, stderr
 
 from src.utility import (
@@ -15,7 +13,6 @@ from src.utility import (
     init_logger,
     log,
     run_shell_cmd,
-    base_directory,
     src_directory,
     shell_scripts_directory,
     modules_directory,
@@ -24,11 +21,12 @@ from src.utility import (
     set_var,
     optional_string_to_optional_int,
     exit_on_not_found,
+    header_file_path,
 )
 from src.split_read_caller import SplitReadCallerOptions, SplitReadCaller
 from src.chain_caller import ChainCallerOptions, ChainCaller
 from src.altref import AltrefOptions, Altref
-from src.depth_info import DepthInfoOptions, DepthInfo
+# from src.depth_info import DepthInfoOptions, DepthInfo
 from src.term_sv_caller import TermSvCallerOptions, TermSvCaller
 from src.bp_tools import BpToolsOptions, BpTools
 
@@ -53,6 +51,8 @@ class SENSV:
         # init config
         set_var("common", "ref_ver", ref_ver)
         set_var("common", f'ref_{ref_ver}', ref)
+        set_var("depth", "mask_table", f'GRCh{ref_ver}.mask.csv')
+        set_var("depth", "depth_ref", f'GRCh{ref_ver}.depth_ref.csv')
         self.load_config()
         self.nprocs = nprocs
 
@@ -63,6 +63,8 @@ class SENSV:
         self.sample_name = sample_name
         self.fastq_file_orig = fastq_file
         self.output_prefix = output_prefix
+        self.ref_ver = ref_ver
+        self.header_file_path = header_file_path()
 
         default_min_sv_size = self.config['default_min_sv_size']
         default_min_sv_size_by_depth = self.config['default_min_sv_size_by_depth']
@@ -197,6 +199,7 @@ class SENSV:
         input_ref_absolute_path = str(depth_data_directory() / self.config['depth_ref'])
         gender = self.gender
         output_path = self.output_prefix
+        ref_ver = self.ref_ver
         nprocs = self.nprocs
 
         exit_on_not_found(input_bam_file, message="Missing input bam file.")
@@ -205,7 +208,8 @@ class SENSV:
 
         cmd = (
             f'cd {depth_src_path} && '
-            f'python depth_normalize_gender_thread.py {input_bam_file} {input_ref_absolute_path} {gender} {output_path} {nprocs}'
+            f'python depth_normalize_gender_thread.py '
+            f'{input_bam_file} {input_ref_absolute_path} {gender} {output_path} {ref_ver} {nprocs}'
         )
         logging.info(f"cmd: #{cmd}#")
         run_shell_cmd(cmd, stdout=stdout, stderr=stderr)
@@ -534,7 +538,7 @@ class SENSV:
         # bed2 to vcf
         cmd = (
             f'cat {self.final_result} | '
-            f'python {str(src_directory() / "bed2_to_vcf.py")} > {self.vcf_from_final_bed2}'
+            f'python {str(src_directory() / "bed2_to_vcf.py")} --header_file_path "{self.header_file_path}" > {self.vcf_from_final_bed2}'
         )
         # logging.info(f'cmd: #{cmd}#')
         run_shell_cmd(cmd, stdout=stdout, stderr=stderr)
@@ -549,6 +553,7 @@ class SENSV:
             f'--min_sv_size {self.min_sv_size} '
             f'--output {self.tra_inv_vcf} '
             f'--samtools {self.config["samtools"]} '
+            f'--header_file_path {self.header_file_path} '
             f'--processes {self.nprocs}'
         )
         # logging.info(f'cmd: #{cmd}#')

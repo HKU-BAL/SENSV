@@ -123,6 +123,11 @@ def depth_data_directory():
     return data_directory() / 'depth'
 
 
+def header_file_path():
+    ref_ver = get_var('common', 'ref_ver')
+    return data_directory() / 'output' / f'GRCh{ref_ver}.header'
+
+
 def load_config():
     from configparser import ConfigParser
     global config
@@ -265,7 +270,7 @@ def is_same_arm(chrom1, pos1, chrom2, pos2):
     cytoband1 = get_cytoband(chrom1, pos1)
     cytoband2 = get_cytoband(chrom2, pos2)
 
-    return (cytoband1 and cytoband2 and cytoband1[0] == cytoband2[0])
+    return cytoband1 and cytoband2 and cytoband1[0] == cytoband2[0]
 
 
 def align(ref_info_list, query_info_list, file_prefix):
@@ -503,7 +508,8 @@ def gen_altref_seq(sv_str, buf_size):
 
 
 def load_depth_list():
-    depth_list_path = data_directory() / 'depth' / 'depth_list'
+    ref_ver = get_var('common', 'ref_ver')
+    depth_list_path = data_directory() / 'depth' / f'GRCh{ref_ver}.depth_list'
 
     l = defaultdict(list)
     with open(depth_list_path, 'r') as f:
@@ -557,7 +563,7 @@ def filter_depth_file(gender, orig_depth_file, new_depth_file, nprocs):
             chrom, start, end, score, region_type = \
                 arr[0], int(float(arr[1])), int(float(arr[2])), int(float(arr[3])), arr[4]
 
-            sv_str = f'{chrom}_{start}_{end}_{score}_{region_type}'
+            sv_str = '%s_%d_%d_%d_%s' % (chrom, start, end, score, region_type)
             sv_str_list.append(sv_str)
 
     pool = Pool(processes=nprocs)
@@ -569,12 +575,12 @@ def filter_depth_file(gender, orig_depth_file, new_depth_file, nprocs):
         sv_str = result['sv_str']
         normal_avg_depth = result['normal_avg_depth']
 
-        is_skip = False
+        is_skip = 0
         if result['normal_avg_depth'] < 0.5:
-            is_skip = True
-        elif gender == 'f' or chrom not in ["X", "Y"]:
-            if gender == 'f' and chrom == "Y":
-                is_skip = True
+            is_skip = 1
+        elif gender == 'f' or chrom not in ['X', 'Y']:
+            if gender == 'f' and chrom == 'Y':
+                is_skip = 1
 
         if is_skip:
             print('gender = %s, normal avg depth = %f, depth region skipped: %s_%s_%s' %

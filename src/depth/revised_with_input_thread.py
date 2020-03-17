@@ -9,15 +9,13 @@ import os
 import csv
 import sys
 import math
-import pickle
 import argparse
+from multiprocessing import Pool
+from itertools import repeat
+
 import numpy as np
 import pandas as pd
 import scipy.stats
-from sys import maxsize
-from pathlib import Path
-from multiprocessing import Pool
-from itertools import repeat
 
 
 def local_max_subarray(df, size, min_len=500000):
@@ -55,11 +53,11 @@ def local_max_subarray(df, size, min_len=500000):
         # extend the existing summation
         temp_end_index = df.at[curPos if curPos != size else size - 1, 'start']
         max_ending_here = max_ending_here + curDif
-        if (temp_start_index == None):
+        if temp_start_index is None:
             temp_start_index = df.at[0, 'start']
 
         # skip updating candidates array if subarray length is not long enough
-        if temp_end_index == None or temp_start_index == None or temp_end_index - temp_start_index < min_len:
+        if temp_end_index is None or temp_start_index is None or temp_end_index - temp_start_index < min_len:
             continue
 
         # if candidates is empty or the last item is a brand new subarray => append candidates

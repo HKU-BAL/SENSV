@@ -2,9 +2,10 @@ import os
 import logging
 import argparse
 import configparser
-import pandas as pd
 from threading import Thread
 from pathlib import Path
+
+import pandas as pd
 
 
 def get_depth(samtools, chr, window, bam, output, logger):

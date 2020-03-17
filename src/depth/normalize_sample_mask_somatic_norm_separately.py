@@ -1,6 +1,5 @@
 import argparse
 import pandas as pd
-from pathlib import Path
 
 
 def mask_unknown(df, mask_table_path):

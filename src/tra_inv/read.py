@@ -1,7 +1,7 @@
 from collections import namedtuple
 
 from cigar_parser import CigarString
-from utils import major_contigs, major_contigs_set
+from utils import major_contigs_set
 
 SA_Read = namedtuple('SA_Read', [
     'RNAME',
@@ -31,7 +31,7 @@ class Read:
         return string
 
     @classmethod
-    def parse(self, read):
+    def parse(cls, read):
         columns = read.strip().split()
 
         QNAME, FLAG, RNAME, POS, MAPQ, CIGAR, RNEXT, PNEXT, TLEN, SEQ, QUAL = columns[:11]
@@ -41,12 +41,12 @@ class Read:
         return QNAME, FLAG, FLAGS, RNAME, POS, MAPQ, CIGAR, RNEXT, PNEXT, TLEN, SEQ, QUAL, TAGS
 
     @classmethod
-    def parse_flags_from(self, flag_str):
+    def parse_flags_from(cls, flag_str):
         flag_int_value = int(flag_str)
         return [a == a & flag_int_value for a in [pow(2, n) for n in range(12)]]
 
     @classmethod
-    def parse_tags_from(self, columns):
+    def parse_tags_from(cls, columns):
         tags = {}
         for tag in columns[11:]:
             tag_list = tag.split(":")

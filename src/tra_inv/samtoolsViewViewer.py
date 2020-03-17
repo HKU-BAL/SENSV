@@ -1,6 +1,6 @@
 import shlex
 import sys
-from multiprocessing import Process, Queue, Manager
+from multiprocessing import Process, Manager
 
 from utils import subprocess_popen, is_file_exists
 from read import Read
@@ -29,7 +29,7 @@ def gather_result(q, pipe, has_tag=None):
 
 class SamtoolsViewViewer:
 
-    def __init__(self, has_tag=None, bam="", samtools="samtools", ctg_list=[], ctg_range=None, mapq_filter=10):
+    def __init__(self, has_tag=None, bam="", samtools="samtools", ctg_list=None, ctg_range=None, mapq_filter=10):
         if not is_file_exists(bam):
             print("... Error: Bam file does not exist, please check the input file path ...")
             sys.exit(1)
@@ -48,7 +48,7 @@ class SamtoolsViewViewer:
         process_list = []
         subprocess_list = []
 
-        for contig in ctg_list:
+        for contig in (ctg_list or []):
             subprocess = subprocess_popen(
                 shlex.split(
                     f'{samtools} view -q {mapq_filter} {bam} {contig}{f":{ctg_range}" if ctg_range else ""}'

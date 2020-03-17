@@ -1,8 +1,5 @@
-import os
 import sys
-from pathlib import Path
-
-from utility import data_directory
+from argparse import ArgumentParser
 
 
 def x(row, z):
@@ -10,9 +7,13 @@ def x(row, z):
 
 
 if __name__ == "__main__":
+    parser = ArgumentParser(description='A script to see see what split reads look like >.0')
+    parser.add_argument('--header_file_path', help='header file path', required=True, type=str, default='')
+    args = parser.parse_args()
+
     INF = 999999
 
-    header_file_path = data_directory() / 'output' / 'header'
+    header_file_path = args.header_file_path
     print(f'header_file_path: #{header_file_path}#', file=sys.stderr)
 
     f = open(header_file_path).read().splitlines()

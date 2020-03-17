@@ -104,7 +104,9 @@ class DP:
         return [zone, chrom, genomic_pos]
 
     def get_gap_type(self, gap_start_zone, gap_end_zone):
-        if self.bp['sv_type'] in ['DEL','DUP','TRA','DEL-FROM-INS-FROM','DEL-TO-INS-FROM','DEL-FROM-INS-TO','DEL-TO-INS-TO','CHIMERIC','REF']:
+        if self.bp['sv_type'] in [
+            'DEL', 'DUP', 'TRA', 'DEL-FROM-INS-FROM', 'DEL-TO-INS-FROM', 'DEL-FROM-INS-TO', 'DEL-TO-INS-TO', 'CHIMERIC', 'REF'
+        ]:
             return self.bp['sv_type']
 
         elif self.bp['sv_type'] == 'INV':
@@ -236,7 +238,7 @@ class DP:
             bp_zone[1]['chrom'], bp_zone[1]['start'], bp_zone[1]['end'] = bp['chrom2'], bp['end']-buf_size, bp['end']+buf_size
             bp_zone[2]['chrom'], bp_zone[2]['start'], bp_zone[2]['end'] = bp['chrom'], bp['start']-gap_buf_size, bp['start']+buf_size
 
-            if options.query_strand in ['++','--']:
+            if options.query_strand in ['++', '--']:
                 ref_seq = get_ref(bp_zone[0]['chrom'], bp_zone[0]['start'], bp_zone[0]['end'])
                 ref_seq += get_ref(bp_zone[1]['chrom'], bp_zone[1]['start'], bp_zone[1]['end'])
                 ref_seq += get_ref(bp_zone[2]['chrom'], bp_zone[2]['start'], bp_zone[2]['end'])
@@ -246,7 +248,7 @@ class DP:
                 ref_seq += get_ref(bp_zone[2]['chrom'], bp_zone[2]['start'], bp_zone[2]['end'])
 
                 bp_zone[1]['start'], bp_zone[1]['end'] = bp_zone[1]['end'], bp_zone[1]['start']
-        elif bp['sv_type'] in ['DEL-FROM-INS-FROM','DEL-TO-INS-FROM','DEL-FROM-INS-TO','DEL-TO-INS-TO']:
+        elif bp['sv_type'] in ['DEL-FROM-INS-FROM', 'DEL-TO-INS-FROM', 'DEL-FROM-INS-TO', 'DEL-TO-INS-TO']:
             bp_zone = [{}, {}]
 
             bp_zone[0]['chrom'], bp_zone[0]['start'], bp_zone[0]['end'] = bp['chrom'], bp['start']-buf_size, bp['start']+gap_buf_size

@@ -1,4 +1,3 @@
-import pysam
 import csv
 import math
 from subprocess import PIPE
@@ -7,6 +6,7 @@ from multiprocessing import Pool
 from collections import defaultdict
 from sys import exit, stdout, stderr
 
+import pysam
 from src.utility import (
     get_var,
     run_shell_cmd,
@@ -407,7 +407,7 @@ class Altref:
         )
         run_cmd(cmd, is_log_cmd=self.is_log_cmd)
 
-    def get_mapq(self, sv_str, read_list):
+    def get_mapq(self, sv_str, _read_list):
         mapq = defaultdict(dict)
 
         out_bam = f'{self.altref}_{sv_str}.bam'
@@ -691,7 +691,7 @@ class Altref:
                     print(f'>{read_name}_{part}', file=f)
                     print(seq, file=f)
 
-    def gen_mapq(self, sv_str, supp_read):
+    def gen_mapq(self, _sv_str, supp_read):
         mapq = {}
 
         for read_name in supp_read:

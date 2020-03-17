@@ -1,4 +1,4 @@
-from collections import defaultdict, namedtuple
+from collections import namedtuple
 
 Breakpoint = namedtuple('Breakpoint', ['chr', 'position'])
 Interval = namedtuple('Interval', ['begin', 'end'])
@@ -51,7 +51,7 @@ class SV:
         return self.breakpoint1.chr, self.breakpoint2.chr
 
     @classmethod
-    def sort_breakpoints(self, breakpoint1, breakpoint2):
+    def sort_breakpoints(cls, breakpoint1, breakpoint2):
         chr1, pos1 = breakpoint1.chr, breakpoint1.position
         chr2, pos2 = breakpoint2.chr, breakpoint2.position
 
@@ -61,7 +61,7 @@ class SV:
             return breakpoint1, breakpoint2
 
     @classmethod
-    def merge_two_intervals(self, interval1, interval2):
+    def merge_two_intervals(cls, interval1, interval2):
         return Interval(min(interval1.begin, interval2.begin), max(interval1.end, interval2.end))
 
     def merge(self, sv):

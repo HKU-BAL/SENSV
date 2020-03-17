@@ -3,21 +3,16 @@ import sys
 import shlex
 import argparse
 import subprocess
-import configparser
 from pathlib import Path
 
 
 def main(args=None):
-    bam, reference, gender, output_path, nprocs = \
-        args.bam, args.reference, args.gender, args.output_path, args.nprocs
+    bam, reference, gender, output_path, ref_ver, nprocs = \
+        args.bam, args.reference, args.gender, args.output_path, args.ref_ver, args.nprocs
 
     # current directory = repo directory (SENSV folder)
     current_directory = Path(os.path.dirname(__file__)).resolve().parent.parent
-    config_file_path = current_directory / 'config.ini'
-    config = configparser.ConfigParser()
-    config.read(config_file_path)
-
-    mask_table_absolute_path = str(current_directory / 'data' / 'depth' / config['depth']['mask_table'])
+    mask_table_absolute_path = str(current_directory / 'data' / 'depth' / f'GRCh{ref_ver}.mask.csv')
 
     name = Path(bam).stem
 
@@ -50,6 +45,7 @@ if __name__ == "__main__":
     parser.add_argument('reference', nargs='?', help='input ref file.')
     parser.add_argument('gender', nargs='?', help='m: male, f:female.')
     parser.add_argument('output_path', nargs='?', help='output path.')
+    parser.add_argument('ref_ver', nargs='?', help='ref_ver')
     parser.add_argument('nprocs', nargs='?', help='max # of processes to run.')
     args = parser.parse_args()
 

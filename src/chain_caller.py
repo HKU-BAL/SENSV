@@ -360,7 +360,7 @@ class ChainCaller:
             dp_writer = csv.writer(f_dp, delimiter='\t')
             bed2_writer = csv.writer(f_bed2, delimiter='\t')
 
-            dp_header=[
+            dp_header = [
                 'chrom',
                 'genomic_gap_start',
                 'chrom2',
@@ -482,7 +482,7 @@ class ChainCaller:
                               chain_list['bp_start'], chain_list['bp_end']))
                 """
 
-        logging.info('have_target_gap: %d, need_dp: %d' % (have_target_gap, need_dp))
+        logging.info(f'have_target_gap: {have_target_gap}, need_dp: {need_dp}')
 
         # debug
         # self.print_chain_list()
