@@ -1,73 +1,57 @@
 # SENSV
 
 ## Installation
-
-### Step 1. Install required packages
 ```
-# config for conda
+# add conda channels
 conda config --add channels defaults
 conda config --add channels bioconda
 conda config --add channels conda-forge
 
-conda install minimap2 samtools pigz grabix pypy survivor
+# create conda environemnt named sensv-env
+conda create -n sensv-env python=3.7
 
-# for python2
-pip install pandas
-pip install scipy
-pip install pysam
+# activate newly created conda environemnt
+conda activate sensv-env
 
-```
+# install conda packages
+conda install minimap2=2.17 samtools=1.7 pigz=2.3.4 grabix=0.1.8 pypy3.6=7.3.0 survivor=1.0.6 pandas=1.0.1 scipy=1.4.1 pysam=0.15.3 htslib=1.10.2 intervaltree=3.0.2 vcflib=1.0.0
 
-### Step 2. Clone the repository
-
-```
+# clone repo
 git clone https://github.com/HKU-BAL/SENSV.git
+
+# setup sensv
+cd SENSV
+make
+export PATH=`pwd`":$PATH"
+
+# run sensv like this afterwards
+sensv --help
 ```
 
-### Step 3. Fill in the paths for the required file
+## After installation
 
-In `config.ini`, change the path for samtools and minimap2 if they are not available in PATH.
-A GRCh37 reference file is also needed. If you do not have it in advance, you can download it with the following commands
+### Download GRCh37 reference file
 ```
 curl ftp://ftp-trace.ncbi.nih.gov/1000genomes/ftp/technical/reference/phase2_reference_assembly_sequence/hs37d5.fa.gz > hs37d5.fa.gz
+
 gzip -d hs37d5.fa.gz
+
+# make sure that the reference index is also available in <path_to_GRCh37_ref>.fai
 samtools faidx hs37d5.fa
 ```
-```
-#config.ini
-[common]
-samtools = <path_of_samtools>
-minimap2 = <path_of_minimap2>
-ref_37 = <path_of_GRCh37_ref>
-```
-Please also make sure that the reference index is also available in <path_to_GRCh37_ref>.fai
 
-In `config.sh`, change the path for bgzip, pigz and grabix if they are not available in PATH.
-
-```
-#config.sh
-PIGZ = <path_of_pigz>
-GRABIX = <path_of_grabix>
-BGZIP = <path_of_bgzip>
-```
-
-In `merge_sv.sh`, change the path for survivor if it is not available in PATH.
-
-```
-#merge_sv.sh
-survivor = <path_of_survivor>
-```
 
 ## Usage
 
 You will need a fastq file of the sample to run SENSV.
 
-python SENSV.py [options]
+sensv [options]
 
 ```
 Required Arguments:
 -sample_name - Name of the sample
 -fastq - The path to the reads, either gziped or raw
+-ref - Reference fasta file
 -output_prefix - Output prefix for all intermediate files and final output, preferably inside a folder.
 
 Optional Arguments:
