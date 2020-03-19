@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import os
+import sys
 import shutil
 import csv
 import logging
@@ -586,7 +587,8 @@ class SENSV:
 
 
 if __name__ == "__main__":
-    parser = ArgumentParser(description='run')
+    parser = ArgumentParser(description='SENSV')
+
     parser.add_argument('-sample_name', '--sample_name', help='sample name', required=True)
     parser.add_argument('-fastq', '--fastq_file', help='fastq file', required=True)
     parser.add_argument('-output_prefix', '--output_prefix', help='output prefix', required=True)
@@ -603,6 +605,11 @@ if __name__ == "__main__":
     parser.add_argument('-ref', '--ref', help="reference fasta file absolute path", required=True, type=str)
 
     parser.add_argument('-nprocs', '--nprocs', help="max # of processes to run sensv", required=False, type=int, default=48)
+
+    # print help message if no argument input
+    if len(sys.argv) <= 1 or sys.argv[1] == "-h" or sys.argv[1] == "--help":
+        parser.print_help(stderr)
+        sys.exit(0)
 
     args = parser.parse_args()
 
