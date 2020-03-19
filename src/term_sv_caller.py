@@ -7,6 +7,7 @@ from src.utility import (
     get_short_name,
     get_clip_seq,
     run_shell_cmd,
+    data_directory,
 )
 
 class TermSvCallerOptions:
@@ -118,7 +119,7 @@ class TermSvCaller:
         if type != 'ref':
             return f"{output_prefix}_{region['chrom']}_{region['pos']}_{region['side']}.{type}"
         else:
-            return 'assembled_ref/HG001_assembled.fa'
+            return data_directory() / 'assembled_ref' / 'HG001_assembled.fa'
 
     def gen_fasta(self, term_region):
         options = self.options
