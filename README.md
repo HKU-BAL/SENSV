@@ -24,6 +24,10 @@ cd SENSV
 make
 export PATH=`pwd`":$PATH"
 
+# download data files and uncompress it
+curl http://www.bio8.cs.hku.hk/sensv/data.tar.gz --output data.tar.gz
+tar -xf data.tar.gz
+
 # run sensv like this afterwards
 sensv --help
 ```
