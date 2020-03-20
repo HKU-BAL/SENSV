@@ -8,7 +8,7 @@ dp_stdin:
 	cd modules/dp && make && cd ../../
 
 dpmodule:
-	cd modules/dpmodule && python setup.py install && cd ../../
+	cd modules/dpmodule && $(PYTHON) setup.py install && cd ../../
 
 clean:
 	cd modules/my_minimap2 && make clean && cd ../../
