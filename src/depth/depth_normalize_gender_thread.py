@@ -3,6 +3,7 @@ import sys
 import shlex
 import argparse
 import subprocess
+import configparser
 from pathlib import Path
 
 
@@ -16,7 +17,7 @@ def main(args=None):
 
     name = Path(bam).stem
 
-    cmd = f'python depth.thread.py {bam} {output_path}'
+    cmd = f'python depth.thread.py {bam} {output_path} {ref_ver}'
     # print(f'cmd: #{cmd}#')
     os.system(cmd)
 
