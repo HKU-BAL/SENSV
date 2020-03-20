@@ -7,10 +7,8 @@ from threading import Thread
 from pathlib import Path
 
 
-def get_depth(samtools, chr, window, bam, output, logger,ref):
+def get_depth(samtools, chr, window, bam, output, logger):
     logger.info(f'Calculating mean depth of chr{chr}')
-    if(ref=="38"):
-        chr="chr"+str(chr)
     cmd = (
         f'{samtools} depth -ar {chr} {bam} | '
         f'pypy3 fastmeandepthcnt.py - {window} > {output}'
@@ -34,7 +32,6 @@ def depth_to_csv(output_name, output_dir, chr_list):
 
 def main(args=None):
     bam, output_path = args.bam, Path(args.output_path)
-    ref_ver=args.ref_ver
     # read config
     current_directory = Path(os.path.dirname(__file__)).resolve().parent.parent
     config_file_path = current_directory / "config.ini"
@@ -87,7 +84,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Calculate mean depth from bam.')
     parser.add_argument('bam', help='input bam file.')
     parser.add_argument('output_path', help='output path.')
-    parser.add_argument('ref_ver',help='grch37 or grch38, plz input 37 or 38 accordingly')
     args = parser.parse_args()
 
     main(args)

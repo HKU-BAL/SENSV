@@ -17,7 +17,7 @@ def main(args=None):
 
     name = Path(bam).stem
 
-    cmd = f'python depth.thread.py {bam} {output_path} {ref_ver}'
+    cmd = f'python depth.thread.py {bam} {output_path}'
     # print(f'cmd: #{cmd}#')
     os.system(cmd)
 
