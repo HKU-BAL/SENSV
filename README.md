@@ -53,15 +53,14 @@ sensv [options]
 
 ```
 Required Arguments:
--sample_name - Name of the sample
--fastq - The path to the reads, either gziped or raw
--ref - Reference fasta file
--output_prefix - Output prefix for all intermediate files and final output, preferably inside a folder.
+  -sample_name - Name of the sample
+  -fastq - The path to the reads, either gziped or raw
+  -ref - Reference fasta file
+  -output_prefix - Output prefix for all intermediate files and final output, preferably inside a folder.
 
 Optional Arguments:
--min_sv_size - Minimum SV size to be called
--max_sv_size - Maximum SV size to be called
--target_sv_type - [DUP/DEL/DUP,DEL], default is DUP,DEL
+  -min_sv_size - Minimum SV size to be called
+  -max_sv_size - Maximum SV size to be called
 ```
 
-After the process is done, the result bed2 file will be available in <output_prefix>_final.result.
+After the process is done, the result bed2 file will be available in <output_prefix>_final.vcf.
