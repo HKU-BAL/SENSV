@@ -1,6 +1,26 @@
 # SENSV
 
 ## Installation
+
+### Option 1. Bioconda
+```
+# make sure channels are added in conda
+conda config --add channels defaults
+conda config --add channels bioconda
+conda config --add channels conda-forge
+
+# create conda environment named "sensv-env"
+conda create -n sensv-env -c bioconda sensv python=3.7
+conda activate sensv-env
+
+# post setup
+cd $(dirname `which sensv`) && make post_link && cd -
+
+# run sensv like this afterwards
+sensv --help
+```
+
+### Option 2. Build and anaconda virtual environment step by step
 ```
 # add conda channels
 conda config --add channels defaults
@@ -25,7 +45,7 @@ make
 export PATH=`pwd`":$PATH"
 
 # download data files and uncompress it
-curl http://www.bio8.cs.hku.hk/sensv/data.tar.gz --output data.tar.gz
+curl http://www.bio8.cs.hku.hk/sensv/data_v1.0.1.tar.gz --output data.tar.gz
 tar -xf data.tar.gz
 
 # run sensv like this afterwards
