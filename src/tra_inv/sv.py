@@ -1,9 +1,7 @@
 from collections import namedtuple
+from utils import interval_from, merge_two_intervals, depth_stat_from
 
 Breakpoint = namedtuple('Breakpoint', ['chr', 'position'])
-Interval = namedtuple('Interval', ['begin', 'end'])
-DP_Result = namedtuple('DP_Result', ['output', 'similar_score'])
-
 
 class SV:
     def __init__(self, read, breakpoint_position1, breakpoint_position2, dp_result=None, flanking_bases=50):
@@ -60,18 +58,37 @@ class SV:
         else:
             return breakpoint1, breakpoint2
 
-    @classmethod
-    def merge_two_intervals(cls, interval1, interval2):
-        return Interval(min(interval1.begin, interval2.begin), max(interval1.end, interval2.end))
-
     def merge(self, sv):
         self.dp_results += sv.dp_results
         self.supported_reads = self.supported_reads + sv.supported_reads
         self.breakpoint_intervals = [
-            SV.merge_two_intervals(*(intervals)) for intervals in zip(self.breakpoint_intervals, sv.breakpoint_intervals)
+            merge_two_intervals(*(intervals)) for intervals in zip(self.breakpoint_intervals, sv.breakpoint_intervals)
         ]
 
 
-def interval_from(position, flanking_bases):
-    # intervals are [start, end)
-    return Interval(max(position - flanking_bases, 0), position + flanking_bases + 1)
+class SV_Utilities:
+
+    def __init__(self, bam, samtools):
+        self.bam = bam
+        self.samtools = samtools
+
+    def allele_frequencies_from(self, sv):
+        """get af from two breakpoints of sv"""
+        for breakpoint in [sv.breakpoint1, sv.breakpoint2]:
+            interval = interval_from(breakpoint.position, flanking_bases=50)
+            mean_left, mean_right = depth_stat_from(self.bam, self.samtools, breakpoint, interval.begin, interval.end)
+            af = len(sv.supported_reads) / max(max(mean_left, mean_right), 1)
+            yield af
+
+    def output_info_from(self, sv):
+        """get QUAL and SCORE from sv"""
+        af = sum(self.allele_frequencies_from(sv))
+        score = 0
+        for dp_result in sv.dp_results:
+            score += dp_result.similar_score
+        score = 1.0 * score / len(sv.dp_results)
+        
+        qual = str(int(score * 10) + int(min(af * 40 - 10, 30)))
+        score = str(int(sv.first_similar_score * 10) + int(min(af * 40 - 10, 30)))
+
+        return qual, score

@@ -8,7 +8,7 @@ from read import Read
 
 def gather_result(q, pipe, has_tag=None):
     for line in pipe:
-        read = Read(line)
+        read = Read.from_str(line)
 
         if type(has_tag) == list:
             flag = True
@@ -29,7 +29,7 @@ def gather_result(q, pipe, has_tag=None):
 
 class SamtoolsViewViewer:
 
-    def __init__(self, has_tag=None, bam="", samtools="samtools", ctg_list=None, ctg_range=None, mapq_filter=10):
+    def __init__(self, has_tag=None, bam="", samtools="samtools", ctg_list=[], ctg_range=None, mapq_filter=10):
         if not is_file_exists(bam):
             print("... Error: Bam file does not exist, please check the input file path ...")
             sys.exit(1)
@@ -37,7 +37,7 @@ class SamtoolsViewViewer:
         if not is_file_exists(bam + ".bai"):
             print("... Bam file is not indexed yet, the index file will now be generated ...")
 
-            bam_index = subprocess_popen(shlex.split("%s index %s" % (samtools, bam)))
+            bam_index = subprocess_popen(shlex.split(f"{samtools} index {bam}"))
             ret_code = bam_index.wait()
 
             if ret_code != 0:
@@ -48,11 +48,9 @@ class SamtoolsViewViewer:
         process_list = []
         subprocess_list = []
 
-        for contig in (ctg_list or []):
+        for contig in ctg_list:
             subprocess = subprocess_popen(
-                shlex.split(
-                    f'{samtools} view -q {mapq_filter} {bam} {contig}{f":{ctg_range}" if ctg_range else ""}'
-                )
+                shlex.split(f'{samtools} view -q {mapq_filter} {bam} {contig}{f":{ctg_range}" if ctg_range else ""}')
             )
             subprocess_list.append(subprocess)
             process = Process(target=gather_result, args=(queue, subprocess.stdout, has_tag))
@@ -65,11 +63,10 @@ class SamtoolsViewViewer:
         for subprocess in subprocess_list:
             subprocess.stdout.close()
 
-        # self.reads = list(queue.queue)
         self.reads = []
         while not queue.empty():
             self.reads.append(queue.get())
             if len(self.reads) % 100000 == 0:
-                print(f'... {len(self.reads)} reads processed ...')
+                print("... %d reads processed ..." % len(self.reads))
 
-        print(f'... Finished reading bam, extracted {len(self.reads)} reads ...')
+        print("... Finished reading bam, extracted %d reads ..." % len(self.reads))

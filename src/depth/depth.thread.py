@@ -63,7 +63,6 @@ def main(args=None):
                 'bam': bam,
                 'output': f'{output_path / output_dir / f"depth_df_{chr}.csv"}',
                 'logger': logger,
-                'ref':ref_ver,
             }
         ) for chr in chr_list
     ]

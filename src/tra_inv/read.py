@@ -1,7 +1,7 @@
 from collections import namedtuple
 
 from cigar_parser import CigarString
-from utils import major_contigs_set
+from utils import major_contigs_set, reverse_complement_of
 
 SA_Read = namedtuple('SA_Read', [
     'RNAME',
@@ -14,31 +14,93 @@ SA_Read = namedtuple('SA_Read', [
 
 class Read:
 
-    def __init__(self, read):
-        self.QNAME, self.FLAG, self.FLAGS, self.RNAME, self.POS, self.MAPQ, CIGAR, \
-            self.RNEXT, self.PNEXT, self.TLEN, self.SEQ, _QUAL, self.tags = Read.parse(read)
+    def __init__(
+        self, QNAME, FLAGS, RNAME, POS, MAPQ, CigarStr, RNEXT, PNEXT, TLEN, SEQ, QUAL, tags, SA_reads=None, split_no=None,
+    ):
+        self.QNAME, self.FLAGS, self.RNAME, self.POS, self.MAPQ, self.RNEXT, self.PNEXT, self.TLEN, self.SEQ, self.tags = \
+            QNAME, FLAGS, RNAME, POS, MAPQ, RNEXT, PNEXT, TLEN, SEQ, tags
 
-        self._SA_reads = None
+        self.CigarString = CigarStr
+        self._SA_reads = SA_reads
         self._SV_type = None
-        self.CigarString = CigarString(CIGAR)
+        self.split_no = 0 if split_no is None else split_no
 
     def __str__(self):
         string = (
-            "QNAME: %s\nPOS: %s:%s\nFLAG: %s\nTAG:\n" % (self.QNAME, self.RNAME, self.POS, self.FLAG) +
+            "QNAME: %s\nPOS: %s:%s\nFLAGS: %s\nTAG:\n" % (self.QNAME, self.RNAME, self.POS, self.FLAGS) +
             "".join(["%s: %s\n" % (key, value) for (key, value) in self.tags.items()])
         )
 
         return string
 
     @classmethod
-    def parse(cls, read):
-        columns = read.strip().split()
+    def from_str(cls, read_str):
+        columns = read_str.strip().split()
 
         QNAME, FLAG, RNAME, POS, MAPQ, CIGAR, RNEXT, PNEXT, TLEN, SEQ, QUAL = columns[:11]
         FLAGS = Read.parse_flags_from(FLAG)
         TAGS = Read.parse_tags_from(columns)
 
-        return QNAME, FLAG, FLAGS, RNAME, POS, MAPQ, CIGAR, RNEXT, PNEXT, TLEN, SEQ, QUAL, TAGS
+        return Read(QNAME, FLAGS, RNAME, POS, MAPQ, CigarString(CIGAR), RNEXT, PNEXT, TLEN, SEQ, QUAL, TAGS)
+
+    @classmethod
+    def breakdowned_reads_from(cls, read):
+        """
+        if read have more than 1 SA_reads, breakdown it into array of read, each array item stores one Read/SA_Read pair
+        else just return array with read as the only array item
+        """
+        if len(read.SA_reads) == 1:
+            return [read]
+
+        SA_reads = [SA_Read(
+            RNAME=read.RNAME,
+            POS=read.POS,
+            is_forward_strand=read.is_forward_strand,
+            MAPQ=int(read.MAPQ),
+            CigarString=read.CigarString,
+        )]
+        array = [(0, position_in_read(read.CigarString, is_same_direction_with_parent=True))]
+        for SA_read in read.SA_reads:
+            array.append(
+                (
+                    len(array),
+                    position_in_read(SA_read.CigarString, SA_read.is_forward_strand == read.is_forward_strand)
+                )
+            )
+            SA_reads.append(SA_read)
+        array.sort(key=lambda x: x[1])
+
+        new_reads = []
+        for i in range(len(array)-1):
+            index = array[i][0]
+            SA_read = SA_reads[index]
+
+            new_FLAGS = list(read.FLAGS)
+            new_FLAGS[4] = not SA_read.is_forward_strand
+
+            _new_SEQ = (
+                reverse_complement_of(read.SEQ) if SA_read.is_forward_strand != read.is_forward_strand else read.SEQ
+            )
+
+            new_reads.append(Read(
+                QNAME=read.QNAME,
+                FLAGS=read.FLAGS,
+                RNAME=SA_read.RNAME,
+                POS=SA_read.POS,
+                MAPQ=SA_read.MAPQ,
+                CigarStr=SA_read.CigarString,
+                RNEXT=read.RNEXT,
+                PNEXT=read.PNEXT,
+                TLEN=read.TLEN,
+                SEQ=read.SEQ,
+                QUAL=None,
+                tags=read.tags,
+                SA_reads=[SA_reads[array[i+1][0]]],
+                split_no=(i+1),
+            ))
+
+        # print(f'new_reads: {len(new_reads)}')
+        return new_reads
 
     @classmethod
     def parse_flags_from(cls, flag_str):
@@ -84,8 +146,7 @@ class Read:
                 CigarString=CigarString(CIGAR),
             ))
 
-        # only use the first SA read
-        self._SA_reads = [SA_reads[0]]
+        self._SA_reads = SA_reads
         return self._SA_reads
 
     @property
@@ -140,3 +201,10 @@ class Read:
         if read2.MAPQ < mapq_filter:
             return ""
         return self.SV_type
+
+
+def position_in_read(CIGAR, is_same_direction_with_parent):
+    if is_same_direction_with_parent:
+        return CIGAR.first_cigar_tuple[0] if CIGAR.first_cigar_tuple[1] == "S" else 0
+    else:
+        return CIGAR.last_cigar_tuple[0] if CIGAR.last_cigar_tuple[1] == "S" else 0

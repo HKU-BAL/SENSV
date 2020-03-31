@@ -539,7 +539,7 @@ class SENSV:
         # bed2 to vcf
         cmd = (
             f'cat {self.final_result} | '
-            f'python {str(src_directory() / "bed2_to_vcf.py")} --header_file_path "{self.header_file_path}" > {self.vcf_from_final_bed2}'
+            f'python {str(src_directory() / "bed2_to_vcf.py")} --header_file_path "{self.header_file_path}" --ref_file_path {self.config["ref"]} > {self.vcf_from_final_bed2}'
         )
         # logging.info(f'cmd: #{cmd}#')
         run_shell_cmd(cmd, stdout=stdout, stderr=stderr)
