@@ -2,15 +2,13 @@ import os
 import logging
 import argparse
 import configparser
+import pandas as pd
 from threading import Thread
 from pathlib import Path
-
-import pandas as pd
 
 
 def get_depth(samtools, chr, window, bam, output, logger):
     logger.info(f'Calculating mean depth of chr{chr}')
-
     cmd = (
         f'{samtools} depth -ar {chr} {bam} | '
         f'pypy3 fastmeandepthcnt.py - {window} > {output}'
@@ -34,7 +32,6 @@ def depth_to_csv(output_name, output_dir, chr_list):
 
 def main(args=None):
     bam, output_path = args.bam, Path(args.output_path)
-
     # read config
     current_directory = Path(os.path.dirname(__file__)).resolve().parent.parent
     config_file_path = current_directory / "config.ini"

@@ -139,6 +139,10 @@ def load_config():
 
 
 def get_ref(chr, start_orig, end):
+
+    if end <= 0 or end < start_orig:
+        return ""
+
     import pysam
 
     ref_ver = get_var('common', 'ref_ver')
@@ -627,4 +631,4 @@ def get_sorted_sv_str_list(sv_str_dict):
 
 
 def get_short_name(read_name):
-    return read_name[0:12]
+    return read_name

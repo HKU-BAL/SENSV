@@ -1,18 +1,10 @@
+from collections import namedtuple
+
 from dp_module import get_max_array
+from utils import reverse_complement_of, interval_from, get_reference_from_fasta
+
 
 verbose = False
-
-
-REVERSE_COMPLEMENT = {
-    "A": "T",
-    "C": "G",
-    "G": "C",
-    "T": "A",
-}
-
-
-def reverse_complement_of(sequence):
-    return "".join(reversed([REVERSE_COMPLEMENT[base] for base in sequence]))
 
 
 class DP:
@@ -110,21 +102,45 @@ class DP:
         ref2_align_to_ref1 = self.max_array1[min(max_index+20000, len(self.max_array1)-1)][0] - ref1_align_score
         ref1_align_to_ref2 = self.max_array2[max(max_index-20000, 0)][0] - ref2_align_score
 
-        # ref1_score = 1.0 * (ref2_align_score - ref2_align_to_ref1) / (min(20000, len(self.max_array1)-max_index)+1)
-        # ref2_score = 1.0 * (ref1_align_score - ref1_align_to_ref2) / (min(20000, max_index)+1)
+        ref1_score = 1.0 * (ref2_align_score - ref2_align_to_ref1) / (min(20000, len(self.max_array1)-max_index)+1)
+        ref2_score = 1.0 * (ref1_align_score - ref1_align_to_ref2) / (min(20000, max_index)+1)
 
         score = 1.0 * (ref2_align_score - ref2_align_to_ref1 + ref1_align_score - ref1_align_to_ref2) / \
             (min(20000, len(self.max_array1)-max_index) + min(20000, max_index) + 1)
 
-        # if self.reverse_ref:
-        #     print(
-        #         self.ref1_start+len(self.ref1)-self.bp1, self.ref2_start+self.bp2, ref1_align_score,
-        #         ref2_align_to_ref1, ref1_score, ref2_align_score, ref1_align_to_ref2, ref2_score, max_index
-        #     )
-        # else:
-        #     print(
-        #         self.ref1_start+self.bp1, self.ref2_start+len(self.ref2)-self.bp2, ref1_align_score,
-        #         ref2_align_to_ref1, ref1_score, ref2_align_score, ref1_align_to_ref2, ref2_score, max_index
-        #     )
+        #if self.reverse_ref:
+        #    print(
+        #        self.ref1_start+len(self.ref1)-self.bp1, self.ref2_start+self.bp2, ref1_align_score,
+        #        ref2_align_to_ref1, ref1_score, ref2_align_score, ref1_align_to_ref2, ref2_score, max_index
+        #    )
+        #else:
+        #    print(
+        #        self.ref1_start+self.bp1, self.ref2_start+len(self.ref2)-self.bp2, ref1_align_score,
+        #        ref2_align_to_ref1, ref1_score, ref2_align_score, ref1_align_to_ref2, ref2_score, max_index
+        #    )
 
         return score
+
+
+DP_Result = namedtuple('DP_Result', ['output', 'similar_score'])
+
+
+def get_dp_result(read, ref):
+    read2 = read.SA_reads[0]
+
+    first_cigar_tuple, last_cigar_tuple = read.CigarString.first_cigar_tuple, read.CigarString.last_cigar_tuple
+    cigar_first = int(first_cigar_tuple[0]) if first_cigar_tuple[1] in "SH" else 0
+    cigar_end = int(last_cigar_tuple[0]) if last_cigar_tuple[1] in "SH" else 0
+    pos1, pos2 = read.split_position
+    interval1, interval2 = interval_from(pos1, flanking_bases=20000), interval_from(pos2, flanking_bases=20000)
+
+    ref1 = get_reference_from_fasta(ref, read.RNAME, interval1.begin, interval1.end)
+    ref2 = get_reference_from_fasta(ref, read2.RNAME, interval2.begin, interval2.end)
+
+    dp = DP(read.SEQ, ref1, ref2, interval1.begin, interval2.begin,
+            read.is_forward_strand != read2.is_forward_strand, cigar_end < cigar_first)
+
+    dp_result = dp.get_read_breakpoint()
+    dp_similar_score = dp.get_similarity_score(dp_result[0])
+
+    return DP_Result(dp_result, dp_similar_score)

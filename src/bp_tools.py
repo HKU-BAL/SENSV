@@ -172,6 +172,8 @@ class BpTools:
         self.load_param_str_list()
 
         nprocs = min(len(self.param_str_list), self.options.nprocs)
+        if not nprocs:
+            nprocs = 1
         pool = Pool(processes=nprocs)
         results = pool.map(self, self.param_str_list)
         pool.close()
