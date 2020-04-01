@@ -87,8 +87,58 @@ class SV_Utilities:
         for dp_result in sv.dp_results:
             score += dp_result.similar_score
         score = 1.0 * score / len(sv.dp_results)
-        
+
         qual = str(int(score * 10) + int(min(af * 40 - 10, 30)))
         score = str(int(sv.first_similar_score * 10) + int(min(af * 40 - 10, 30)))
 
         return qual, score
+
+    def vcf_rows_from(self, sv):
+        """
+        Get vcf-formatted rows of a sv, each array item is a string contains vcf rows for output
+
+        If not inversion / translocation, return empty array []
+        """
+        # TODO - find representitive read
+        read = sv.first_supported_read
+
+        QUAL, _SCORE = self.output_info_from(sv)
+
+        TYPE = read.SV_type
+        chr1, chr2 = sv.breakpoint_chromosomes
+        start, end = sv.breakpoint1.position, sv.breakpoint2.position
+
+        if TYPE == "INV":
+            return [f"{chr1}\t{start}\t.\tN\t<{TYPE}>\t{QUAL}\tPASS\tSVLEN=-{end - start};SVTYPE={TYPE};END={end}\tGT\t./."]
+
+        elif TYPE == "TRA":
+            read2 = read.SA_reads[0]
+            cigar = read2.CigarString
+            cigar_first = int(cigar.first_cigar_tuple[0]) if cigar.first_cigar_tuple[1] in "SH" else 0
+            cigar_end = int(cigar.last_cigar_tuple[0]) if cigar.last_cigar_tuple[1] in "SH" else 0
+
+            if cigar_first < cigar_end:
+                if read2.is_forward_strand == read.is_forward_strand:
+                    TYPE = "N[%s:%d[" % (chr2, end)
+                    TYPE2 = "N[%s:%d[" % (chr1, start+1)
+                    start2 = end-1
+                else:
+                    TYPE = "N]%s:%d]" % (chr2, end)
+                    TYPE2 = "[%s:%d[N" % (chr1, start+1)
+                    start2 = end+1
+            else:
+                if read2.is_forward_strand == read.is_forward_strand:
+                    TYPE = "]%s:%d]N" % (chr2, end)
+                    TYPE2 = "]%s:%d]N" % (chr1, start-1)
+                    start2 = end+1
+                else:
+                    TYPE = "[%s:%d[N" % (chr2, end)
+                    TYPE2 = "N]%s:%d]" % (chr1, start-1)
+                    start2 = end-1
+
+            return [
+                f"{chr1}\t{start}\t.\tN\t{TYPE}\t{QUAL}\tPASS\tSVLEN=0;SVTYPE=BND\tGT\t./.",
+                f"{chr2}\t{start2}\t.\tN\t{TYPE2}\t{QUAL}\tPASS\tSVLEN=0;SVTYPE=BND\tGT\t./.",
+            ]
+
+        return []

@@ -14,7 +14,7 @@ from intervaltree import IntervalTree
 from sv import SV, SV_Utilities
 from dp import DP, get_dp_result
 from read import Read
-from utils import get_contig_list, get_reference_from_fasta, interval_from, subprocess_popen
+from utils import get_contig_list, get_reference_from_fasta, interval_from, subprocess_popen, major_contigs_set
 from samtoolsViewViewer import SamtoolsViewViewer
 
 
@@ -32,34 +32,31 @@ def reads_from_samtools(samtools, bam, ctgname, ctgrange, mapq):
 
 
 def breakdowned_reads_from(reads, processes):
-    pool = Pool(processes=processes)
-    breakdowned_reads = pool.map(Read.breakdowned_reads_from, reads)
-    pool.close()
+    with Pool(processes=processes) as pool:
+        breakdowned_reads = pool.map(Read.breakdowned_reads_from, reads)
 
     return chain.from_iterable(breakdowned_reads)
 
 
 def filtered_reads_with(reads, mapq, min_sv_size, min_read_length):
-    def get_SV_size(read, min_sv_size):
-        chr1 = read.RNAME
-
-        read2 = read.SA_reads[0]
-        chr2 = read2.RNAME
-        if chr1 != chr2:
-            return min_sv_size
-
+    def get_SV_size(read):
         pos1, pos2 = read.split_position
         return abs(pos1 - pos2)
 
     filtered_reads = {}
     for read in reads:
-        if not read.SV_type_with_mapq(mapq_filter=mapq) in ["INV", "TRA"]:
+        read2 = read.SA_reads[0]
+        if read.RNAME not in major_contigs_set or read2.RNAME not in major_contigs_set:
+            continue
+        if int(read.MAPQ) < mapq or int(read2.MAPQ) < mapq:
+            continue
+        if read.SV_type not in ["INV", "TRA"]:
             continue
         if len(read.SEQ) < min_read_length:
             continue
         if read.CigarString.first_cigar_tuple[1] == "H" or read.CigarString.last_cigar_tuple[1] == "H":
             continue
-        if get_SV_size(read, min_sv_size) < min_sv_size:
+        if read.SV_type != "TRA" and get_SV_size(read) < min_sv_size:
             continue
         if read.QNAME in filtered_reads and len(filtered_reads[read.QNAME].SEQ) >= len(read.SEQ):
             continue
@@ -119,11 +116,11 @@ def filtered_reads_before_dp(reads):
 
 def dp_results_from(reads, ref, processes):
     print("... Performing dp on %d reads ..." % len(reads))
-    pool = Pool(processes=processes)
-    result = pool.starmap(get_dp_result, zip(reads, repeat(ref)))
-    pool.close()
+    with Pool(processes=processes) as pool:
+        result = pool.starmap(get_dp_result, zip(reads, repeat(ref)))
 
     return result
+
 
 def ngmlr_realign(ngmlr, ref, reads):
     """
@@ -160,10 +157,9 @@ def ngmlr_realign(ngmlr, ref, reads):
 
         return read.QNAME, pos_array
 
-
     #aligned_reads = {}
 
-    #with tempfile.NamedTemporaryFile() as temp_file:
+    # with tempfile.NamedTemporaryFile() as temp_file:
     #    for read in reads:
     #        if read.QNAME in aligned_reads:
     #            continue
@@ -201,6 +197,7 @@ def ngmlr_realign(ngmlr, ref, reads):
 
     return remapped_reads
 
+
 def filtered_reads_with_remapping(reads, pos_dict):
 
     filtered_reads = []
@@ -213,7 +210,7 @@ def filtered_reads_with_remapping(reads, pos_dict):
         for pos_info in pos_dict[read.QNAME]:
             if read.RNAME != pos_info[0]:
                 continue
-            
+
             if abs(int(read.POS)-int(pos_info[1])) < distance:
                 distance = abs(int(read.POS)-int(pos_info[1]))
 
@@ -221,7 +218,6 @@ def filtered_reads_with_remapping(reads, pos_dict):
             filtered_reads.append(read)
 
     return filtered_reads
-    
 
 
 def sv_candidates_from(reads, dp_results):
@@ -289,6 +285,7 @@ def is_valid_sv_with_args(sv, ref, allele_frequencies_from, min_af):
 
     return True
 
+
 def filtered_tra_sv_from(sv_candidates):
     filtered_sv_candidate = []
     for sv_candidate in sv_candidates:
@@ -317,73 +314,33 @@ def filtered_tra_sv_from(sv_candidates):
     return sv_candidates
 
 
-def final_sv_candidates_from(sv_candidates, ref, allele_frequencies_from, min_af, processes):
-    pool = Pool(processes=processes)
-    is_valid_sv_list = pool.starmap(
-        is_valid_sv_with_args,
-        zip(sv_candidates, repeat(ref), repeat(allele_frequencies_from), repeat(min_af)),
-    )
-    pool.close()
+def sv_list_from(sv_candidates, ref, allele_frequencies_from, min_af, processes):
+    with Pool(processes=processes) as pool:
+        is_valid_sv_list = pool.starmap(
+            is_valid_sv_with_args,
+            zip(sv_candidates, repeat(ref), repeat(allele_frequencies_from), repeat(min_af)),
+        )
 
-    final_sv_candidates = []
     for is_valid_sv, sv_candidate in zip(is_valid_sv_list, sv_candidates):
         if is_valid_sv:
-            final_sv_candidates.append(sv_candidate)
-    return final_sv_candidates
+            yield sv_candidate
 
 
+def get_vcf_rows_from(sv_list, vcf_rows_from, processes):
+    with Pool(processes=processes) as pool:
+        vcf_rows = pool.map(vcf_rows_from, sv_list)
 
-def output(sv_list, output_file_path, header_file_path, output_info_from):
+    return chain.from_iterable(vcf_rows)
+
+
+def output_vcf(vcf_rows, output_file_path, header_file_path):
     with open(output_file_path, "w") as vcf:
         with open(header_file_path) as header:
             for line in header.read().splitlines():
                 print(line, file=vcf)
 
-        for sv in sv_list:
-            # log
-            #print(sv)
-            #for dp_result in sv.dp_results:
-            #    print(dp_result.output, dp_result.similar_score)
-
-            # TODO - find representitive read           
-            read = sv.first_supported_read
-
-            QUAL, _SCORE = output_info_from(sv)
-
-            TYPE = read.SV_type
-            chr1, chr2 = sv.breakpoint_chromosomes
-            start, end = sv.breakpoint1.position, sv.breakpoint2.position
-
-            if TYPE == "INV":
-                print("%s\t%d\t.\tN\t<%s>\t%s\tPASS\tSVLEN=-%d;SVTYPE=%s;END=%d\tGT\t./." %
-                      (chr1, start, TYPE, QUAL, end - start, TYPE, end), file=vcf)
-            elif TYPE == "TRA":
-                read2 = read.SA_reads[0]
-                cigar = read2.CigarString
-                cigar_first = int(cigar.first_cigar_tuple[0]) if cigar.first_cigar_tuple[1] in "SH" else 0
-                cigar_end = int(cigar.last_cigar_tuple[0]) if cigar.last_cigar_tuple[1] in "SH" else 0
-
-                if cigar_first < cigar_end:
-                    if read2.is_forward_strand == read.is_forward_strand:
-                        TYPE = "N[%s:%d[" % (chr2, end)
-                        TYPE2 = "N[%s:%d[" % (chr1, start+1)
-                        start2 = end-1
-                    else:
-                        TYPE = "N]%s:%d]" % (chr2, end)
-                        TYPE2 = "[%s:%d[N" % (chr1, start+1)
-                        start2 = end+1
-                else:
-                    if read2.is_forward_strand == read.is_forward_strand:
-                        TYPE = "]%s:%d]N" % (chr2, end)
-                        TYPE2 = "]%s:%d]N" % (chr1, start-1)
-                        start2 = end+1
-                    else:
-                        TYPE = "[%s:%d[N" % (chr2, end)
-                        TYPE2 = "N]%s:%d]" % (chr1, start-1)
-                        start2 = end-1
-
-                print("%s\t%d\t.\tN\t%s\t%s\tPASS\tSVLEN=0;SVTYPE=BND\tGT\t./." % (chr1, start, TYPE, QUAL), file=vcf)
-                print("%s\t%d\t.\tN\t%s\t%s\tPASS\tSVLEN=0;SVTYPE=BND\tGT\t./." % (chr2, start2, TYPE2, QUAL), file=vcf)
+        for vcf_row in vcf_rows:
+            print(vcf_row, file=vcf)
 
 
 def test(args):
@@ -392,24 +349,17 @@ def test(args):
     reads = filtered_reads_with(reads, args.mapq, args.min_sv_size, args.min_read_length)
     reads = filtered_reads_before_dp(reads)
 
-    #dp_results = dp_results_from(reads, ref=args.ref, processes=args.processes)
+    dp_results = dp_results_from(reads, ref=args.ref, processes=args.processes)
     #remap_pos_dict = ngmlr_realign("ngmlr", args.ref, reads)
     #reads = filtered_reads_with_remapping(reads, remap_pos_dict)
-    dp_results = dp_results_from(reads, ref=args.ref, processes=args.processes)
 
     sv_candidates = sv_candidates_from(reads, dp_results)
     sv_candidates = filtered_tra_sv_from(sv_candidates)
 
-    output_utils = SV_Utilities(args.bam, args.samtools)
-    final_sv_candidates = final_sv_candidates_from(
-        sv_candidates, args.ref, output_utils.allele_frequencies_from, args.min_af, args.processes
-    ) 
-    output(
-        final_sv_candidates,
-        output_file_path=args.output,
-        header_file_path=args.header_file_path,
-        output_info_from=output_utils.output_info_from,
-    )
+    sv_utils = SV_Utilities(args.bam, args.samtools)
+    sv_list = sv_list_from(sv_candidates, args.ref, sv_utils.allele_frequencies_from, args.min_af, args.processes)
+    vcf_rows = get_vcf_rows_from(sv_list, vcf_rows_from=sv_utils.vcf_rows_from, processes=args.processes)
+    output_vcf(vcf_rows, output_file_path=args.output, header_file_path=args.header_file_path)
 
 
 if __name__ == "__main__":

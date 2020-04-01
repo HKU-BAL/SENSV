@@ -46,7 +46,7 @@ class Read:
     @classmethod
     def breakdowned_reads_from(cls, read):
         """
-        if read have more than 1 SA_reads, breakdown it into array of read, each array item stores one Read/SA_Read pair
+        if read have more than 1 SA_reads, breakdown it into array of read, each array item stores one Read/SA_Read pair\n
         else just return array with read as the only array item
         """
         if len(read.SA_reads) == 1:

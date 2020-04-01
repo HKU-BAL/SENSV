@@ -102,8 +102,8 @@ class DP:
         ref2_align_to_ref1 = self.max_array1[min(max_index+20000, len(self.max_array1)-1)][0] - ref1_align_score
         ref1_align_to_ref2 = self.max_array2[max(max_index-20000, 0)][0] - ref2_align_score
 
-        ref1_score = 1.0 * (ref2_align_score - ref2_align_to_ref1) / (min(20000, len(self.max_array1)-max_index)+1)
-        ref2_score = 1.0 * (ref1_align_score - ref1_align_to_ref2) / (min(20000, max_index)+1)
+        # ref1_score = 1.0 * (ref2_align_score - ref2_align_to_ref1) / (min(20000, len(self.max_array1)-max_index)+1)
+        # ref2_score = 1.0 * (ref1_align_score - ref1_align_to_ref2) / (min(20000, max_index)+1)
 
         score = 1.0 * (ref2_align_score - ref2_align_to_ref1 + ref1_align_score - ref1_align_to_ref2) / \
             (min(20000, len(self.max_array1)-max_index) + min(20000, max_index) + 1)
