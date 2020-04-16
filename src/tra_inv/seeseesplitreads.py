@@ -286,10 +286,16 @@ def is_valid_sv_with_args(sv, ref, allele_frequencies_from, min_af):
     return True
 
 
-def filtered_tra_sv_from(sv_candidates):
+def filtered_tra_sv_from(sv_candidates, min_sv_size):
     filtered_sv_candidate = []
     for sv_candidate in sv_candidates:
         if sv_candidate.type == "INV":
+
+            start, end = sv_candidate.breakpoint1.position, sv_candidate.breakpoint2.position
+
+            if abs(end-start) < min_sv_size:
+                continue
+
             filtered_sv_candidate.append(sv_candidate)
             continue
 
@@ -311,7 +317,7 @@ def filtered_tra_sv_from(sv_candidates):
             if read_exist[0] and read_exist[1]:
                 filtered_sv_candidate.append(sv_candidate)
 
-    return sv_candidates
+    return filtered_sv_candidates
 
 
 def sv_list_from(sv_candidates, ref, allele_frequencies_from, min_af, processes):
@@ -354,7 +360,7 @@ def test(args):
     #reads = filtered_reads_with_remapping(reads, remap_pos_dict)
 
     sv_candidates = sv_candidates_from(reads, dp_results)
-    sv_candidates = filtered_tra_sv_from(sv_candidates)
+    sv_candidates = filtered_tra_sv_from(sv_candidates, args.min_sv_size)
 
     sv_utils = SV_Utilities(args.bam, args.samtools)
     sv_list = sv_list_from(sv_candidates, args.ref, sv_utils.allele_frequencies_from, args.min_af, args.processes)
