@@ -317,7 +317,7 @@ def filtered_tra_sv_from(sv_candidates, min_sv_size):
             if read_exist[0] and read_exist[1]:
                 filtered_sv_candidate.append(sv_candidate)
 
-    return filtered_sv_candidates
+    return filtered_sv_candidate
 
 
 def sv_list_from(sv_candidates, ref, allele_frequencies_from, min_af, processes):
