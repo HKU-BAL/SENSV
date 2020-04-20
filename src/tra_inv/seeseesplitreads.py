@@ -8,7 +8,7 @@ from pathlib import Path
 from itertools import chain, repeat
 from multiprocessing import Pool
 from argparse import ArgumentParser
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 from intervaltree import IntervalTree
 
 from sv import SV, SV_Utilities
@@ -286,7 +286,29 @@ def is_valid_sv_with_args(sv, ref, allele_frequencies_from, min_af):
     return True
 
 
-def filtered_tra_sv_from(sv_candidates, min_sv_size):
+def filtered_tra_sv_from(sv_candidates, min_sv_size, depth_file_path):
+
+    Depth_item = namedtuple('Depth_item', [
+        'chr',
+        'start',
+        'end',
+        'type'
+    ])
+
+    def get_type_from_depth_list(depth_list, chrom, position):
+        for depth in depth_list:
+            if depth.chr == chrom and position > depth.start and position < depth.end:
+                return depth[3]
+
+        return None
+
+    if depth_file_path:
+        depth_list = []
+        with open(depth_file_path, 'r') as f:
+            for row in f:
+                row = row.strip().split()
+                depth_list.append(Depth_item(row[0], int(row[1]), int(row[2]), row[4]))
+
     filtered_sv_candidate = []
     for sv_candidate in sv_candidates:
         if sv_candidate.type == "INV":
@@ -300,22 +322,15 @@ def filtered_tra_sv_from(sv_candidates, min_sv_size):
             continue
 
         if sv_candidate.type == "TRA":
-            read_exist = [False, False]
-            for read in sv_candidate.supported_reads:
-                if read.RNAME == sv_candidate.breakpoint1.chr:
-                    pos1 = int(read.POS)
-                    pos2 = int(read.POS) + read.CigarString.ref_length
-                else:
-                    pos1 = int(read.SA_reads[0].POS)
-                    pos2 = int(read.SA_reads[0].POS) + read.SA_reads[0].CigarString.ref_length
+            if depth_list:
+                type1 = get_type_from_depth_list(depth_list, sv_candidate.breakpoint1.chr, sv_candidate.breakpoint1.position)
+                type2 = get_type_from_depth_list(depth_list, sv_candidate.breakpoint2.chr, sv_candidate.breakpoint2.position)
 
-                if abs(pos1-sv_candidate.breakpoint1.position) < abs(pos2-sv_candidate.breakpoint1.position):
-                    read_exist[0] = True
-                else:
-                    read_exist[1] = True
-
-            if read_exist[0] and read_exist[1]:
-                filtered_sv_candidate.append(sv_candidate)
+                if type1 and type2:
+                    if type1 != type2:
+                        continue
+            
+            filtered_sv_candidate.append(sv_candidate)
 
     return filtered_sv_candidate
 
@@ -360,7 +375,7 @@ def test(args):
     #reads = filtered_reads_with_remapping(reads, remap_pos_dict)
 
     sv_candidates = sv_candidates_from(reads, dp_results)
-    sv_candidates = filtered_tra_sv_from(sv_candidates, args.min_sv_size)
+    sv_candidates = filtered_tra_sv_from(sv_candidates, args.min_sv_size, args.depth_file_path)
 
     sv_utils = SV_Utilities(args.bam, args.samtools)
     sv_list = sv_list_from(sv_candidates, args.ref, sv_utils.allele_frequencies_from, args.min_af, args.processes)
@@ -385,6 +400,7 @@ if __name__ == "__main__":
     parser.add_argument('--samtools', help='samtools executable', required=False, type=str, default='samtools')
     parser.add_argument('--header_file_path', help='header file path', required=True, type=str, default='')
     parser.add_argument('--processes', help='# of processes', required=False, type=int, default=40)
+    parser.add_argument('--depth_file_path', help='depth file path', required=False, type=str, default=None)
 
     if len(sys.argv) == 1:
         parser.print_help()

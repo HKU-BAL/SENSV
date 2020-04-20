@@ -555,6 +555,7 @@ class SENSV:
             f'--output {self.tra_inv_vcf} '
             f'--samtools {self.config["samtools"]} '
             f'--header_file_path {self.header_file_path} '
+            f'--depth_file_path {self.depth_file_filtered} '
             f'--processes {self.nprocs}'
         )
         # logging.info(f'cmd: #{cmd}#')
