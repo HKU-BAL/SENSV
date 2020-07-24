@@ -43,26 +43,33 @@ def filtered_reads_with(reads, mapq, min_sv_size, min_read_length):
         pos1, pos2 = read.split_position
         return abs(pos1 - pos2)
 
+    count = 0
+
     filtered_reads = {}
     for read in reads:
+        #print(read.split_position)
+        count += 1
         read2 = read.SA_reads[0]
         if read.RNAME not in major_contigs_set or read2.RNAME not in major_contigs_set:
             continue
         if int(read.MAPQ) < mapq or int(read2.MAPQ) < mapq:
+            #print("mapq")
             continue
         if read.SV_type not in ["INV", "TRA"]:
+            #print("type")
             continue
         if len(read.SEQ) < min_read_length:
             continue
         if read.CigarString.first_cigar_tuple[1] == "H" or read.CigarString.last_cigar_tuple[1] == "H":
             continue
         if read.SV_type != "TRA" and get_SV_size(read) < min_sv_size:
+            #print("SV size")
             continue
         if read.QNAME in filtered_reads and len(filtered_reads[read.QNAME].SEQ) >= len(read.SEQ):
             continue
 
         filtered_reads[read.QNAME + f'{read.split_no}'] = read
-
+    #print(count)
     return filtered_reads.values()
 
 
@@ -226,7 +233,7 @@ def sv_candidates_from(reads, dp_results):
         output, similar_score = dp_result
         if similar_score < 1.0:
             continue
-        # print(output, similar_score)
+        print(output, similar_score)
 
         sv_candidate = SV(
             read=read,
@@ -301,6 +308,8 @@ def filtered_tra_sv_from(sv_candidates, min_sv_size, depth_file_path):
                 return depth[3]
 
         return None
+ 
+    depth_list = None
 
     if depth_file_path:
         depth_list = []
@@ -366,9 +375,14 @@ def output_vcf(vcf_rows, output_file_path, header_file_path):
 
 def test(args):
     reads = reads_from_samtools(args.samtools, args.bam, args.ctgname, args.ctgrange, args.mapq)
+    print(len(reads))
     reads = breakdowned_reads_from(reads, args.processes)
     reads = filtered_reads_with(reads, args.mapq, args.min_sv_size, args.min_read_length)
+    print(len(reads))
+    for read in reads:
+        print(read.split_position)
     reads = filtered_reads_before_dp(reads)
+    print(len(reads))
 
     dp_results = dp_results_from(reads, ref=args.ref, processes=args.processes)
     #remap_pos_dict = ngmlr_realign("ngmlr", args.ref, reads)
@@ -384,19 +398,19 @@ def test(args):
 
 
 if __name__ == "__main__":
-    parser = ArgumentParser(description='A script to see see what split reads look like >.0')
+    parser = ArgumentParser(description='A script to call balanced SV from bam file')
 
-    parser.add_argument('--bam', help='The bam file to be read :D', required=True)
-    parser.add_argument('--ref', help='The corresponding fasta file >.0', required=True)
-    parser.add_argument('--ctgname', help='contig name 0.0', required=False)
-    parser.add_argument('--ctgrange', help='contig range 0v0', required=False)
-    parser.add_argument('--min_sv_size', help='minimum SV ize to be detected .v. (default: 10000)',
+    parser.add_argument('--bam', help='The bam file to be called.', required=True)
+    parser.add_argument('--ref', help='The corresponding fasta file.', required=True)
+    parser.add_argument('--ctgname', help='contig name', required=False)
+    parser.add_argument('--ctgrange', help='contig range', required=False)
+    parser.add_argument('--min_sv_size', help='minimum SV ize to be detected. (default: 10000)',
                         required=False, type=int, default=10000)
-    parser.add_argument('--output', help='output file path 0.<', required=False, default='output.vcf')
+    parser.add_argument('--output', help='output file path', required=False, default='output.vcf')
     parser.add_argument('--mapq', help='MAPQ filtering', required=False, type=int, default=10)
     parser.add_argument('--min_read_length', help='min read length for filtering (exclusive)',
                         required=False, type=int, default=0)
-    parser.add_argument('--min_af', help='min af nya', required=False, type=float, default=0.2)
+    parser.add_argument('--min_af', help='min af', required=False, type=float, default=0.2)
     parser.add_argument('--samtools', help='samtools executable', required=False, type=str, default='samtools')
     parser.add_argument('--header_file_path', help='header file path', required=True, type=str, default='')
     parser.add_argument('--processes', help='# of processes', required=False, type=int, default=40)

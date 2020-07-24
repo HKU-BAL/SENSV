@@ -18,7 +18,7 @@ int str_len(char* s){
     return len;
 }
 
-DPitem get_new_entry(DPitem left, DPitem left_up, DPitem up, bool match){
+DPitem get_new_entry(DPitem left, DPitem left_up, DPitem up, bool match, bool clip){
 
     int new_scores[3];
 
@@ -39,7 +39,10 @@ DPitem get_new_entry(DPitem left, DPitem left_up, DPitem up, bool match){
 
     int i;
     DPitem new_item;
-    new_item.score = 0;
+    if(clip)
+        new_item.score = 0;
+    else
+        new_item.score = new_scores[0];
 
     for(i=0;i<3;i++)
         if(new_scores[i]>new_item.score)
@@ -89,12 +92,19 @@ static PyObject *method_get_max_array(PyObject *self, PyObject *args){
     int *max_array = (int *)malloc(2*(query_len+1)*sizeof(int));
     max_array[0] = 0;
     max_array[1] = 0;
+    bool clip = true;
 
     for(i=0;i<query_len;i++){
         int max_score=0, max_index=0;
         for(j=0;j<ref_len;j++){
             bool match = query[i] == ref[j];
-            matrix[current][j+1] = get_new_entry(matrix[current][j], matrix[previous][j], matrix[previous][j+1], match);
+            matrix[current][j+1] = get_new_entry(matrix[current][j], matrix[previous][j], matrix[previous][j+1], match, clip);
+
+            if(clip){
+                if(matrix[current][j+1].score>100){
+                    clip = false;
+                }
+            }
 
             if(matrix[current][j+1].score>max_score){
                 max_score = matrix[current][j+1].score;

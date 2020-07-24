@@ -158,13 +158,18 @@ class Read:
         read1 = self
         read2 = self.SA_reads[0]
 
-        read1_direction = read1.CigarString.clipped_length() < read1.CigarString.clipped_length(backward=True)
+        #read1_direction = read1.CigarString.clipped_length() < read1.CigarString.clipped_length(backward=True)
+        read1_direction = position_in_read(read1.CigarString, True) < position_in_read(read2.CigarString, read2.is_forward_strand == read1.is_forward_strand)
         read2_relative_strand = (read1.is_forward_strand != read2.is_forward_strand) == read1_direction
 
         return (
             int(read1.POS) + (read1.CigarString.ref_length) * read1_direction,
             int(read2.POS) + (read2.CigarString.ref_length) * read2_relative_strand
         )
+
+    @property
+    def direction(self):
+        return position_in_read(self.CigarString, True) < position_in_read(self.SA_reads[0].CigarString, self.SA_reads[0].is_forward_strand == self.is_forward_strand)
 
     @property
     def SV_type(self):

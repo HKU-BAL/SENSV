@@ -137,8 +137,11 @@ def get_dp_result(read, ref):
     ref1 = get_reference_from_fasta(ref, read.RNAME, interval1.begin, interval1.end)
     ref2 = get_reference_from_fasta(ref, read2.RNAME, interval2.begin, interval2.end)
 
+    # dp = DP(read.SEQ, ref1, ref2, interval1.begin, interval2.begin,
+    #         read.is_forward_strand != read2.is_forward_strand, cigar_end < cigar_first)
+
     dp = DP(read.SEQ, ref1, ref2, interval1.begin, interval2.begin,
-            read.is_forward_strand != read2.is_forward_strand, cigar_end < cigar_first)
+            read.is_forward_strand != read2.is_forward_strand, not read.direction)
 
     dp_result = dp.get_read_breakpoint()
     dp_similar_score = dp.get_similarity_score(dp_result[0])
