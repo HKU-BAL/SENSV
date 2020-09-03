@@ -32,7 +32,7 @@ conda create -n sensv-env python=3.7 minimap2=2.17 samtools=1.7 pigz=2.3.4 grabi
 conda activate sensv-env
 
 # clone repo
-git clone https://github.com/HKU-BAL/SENSV.git
+git clone --depth 1 https://github.com/HKU-BAL/SENSV.git
 
 # setup sensv
 cd SENSV
