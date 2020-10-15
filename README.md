@@ -79,3 +79,6 @@ Optional Arguments:
 ```
 
 After the process is done, the result bed2 file will be available in <output_prefix>_final.vcf.
+
+### Links
+[fastq used in paper](https://drive.google.com/drive/folders/1uKTKzEwzbwfpHPRq7MEyc2tXkLy9V735?usp=sharing)
