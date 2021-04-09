@@ -397,8 +397,9 @@ class Altref:
             out_ref = self.out_ref
             fastq = self.filtered_read_fasta
             out_bam = self.out_bam
-
-        ref_size = math.ceil(1. * path.getsize(out_ref) / 1024 / 1024 / 1024 + .5)
+ 
+        #ref_size = math.ceil(1. * path.getsize(out_ref) / 1024 / 1024 / 1024 + .5)
+        ref_size = math.ceil((1. * path.getsize(out_ref) / 1e9 + .5) * 1.1)
         minimap2_option_split_index_for_every_N_bases = f'-I {ref_size}G' if ref_size > 4 else ''
         cmd = (
             f'{minimap2} -Y {minimap2_option_split_index_for_every_N_bases} -t {nprocs} --MD -a {out_ref} {fastq} | '
