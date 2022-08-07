@@ -183,7 +183,7 @@ class SENSV:
         exit_on_not_found(self.fastq_file, message=f'Input fastq file not found ({self.fastq_file})')
 
         minimap2_opt1 = f'-Y -t {nprocs} -z 200 --MD -a {ref} {self.fastq_file}'
-        minimap2_opt2 = f'-5 {self.chain_file}'
+        minimap2_opt2 = f'-5 {self.chain_file} -L'
 
         cmd = (
             f'{my_minimap2} {minimap2_opt1} {minimap2_opt2} | '
