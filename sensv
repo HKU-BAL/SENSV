@@ -192,6 +192,8 @@ class SENSV:
         )
         logging.info(f'cmd: #{cmd}#')
         run_shell_cmd(cmd)
+        exit_on_not_found(self.chain_file, message=f'Chain file not produced. ({self.chain_file})')
+        exit_on_not_found(self.minimap2_bam_file, message=f'bam file not produced. ({self.minimap2_bam_file})')
 
     @log(message="step 2.1 (generate depth file)")
     def gen_depth_file(self):
