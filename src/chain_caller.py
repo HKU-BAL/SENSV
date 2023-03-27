@@ -247,7 +247,7 @@ class ChainCaller:
                                 if options.disable_dp_filter or (
                                     # chain1['query_start'] < chain2['query_start'] and
                                     # chain1['query_end'] <= chain2['query_end'] and
-                                    chain1['query_end'] < chain2['query_end'] and
+                                    #chain1['query_end'] < chain2['query_end'] and
                                     chain1['query_start'] < 150 and
                                     chain2['seq_len'] - chain2['query_end'] < 300 and
                                     chain1['query_end'] + 500 >= chain2['query_start']
